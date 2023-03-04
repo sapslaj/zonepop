@@ -14,9 +14,7 @@ DOCKERS = {
             "--label=org.opencontainers.image.version={{.Version}}",
         ],
         "use": "buildx",
-        "extra_files": [
-            "minimal-config.yaml",
-        ],
+        "extra_files": [],
     },
     "matrix": [
         {

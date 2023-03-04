@@ -44,8 +44,7 @@ dockers:
       - --label=org.opencontainers.image.version={{.Version}}
       - --platform=linux/amd64
     use: buildx
-    extra_files:
-      - minimal-config.yaml
+    extra_files: []
     goos: linux
     goarch: amd64
     goarm:
@@ -60,8 +59,7 @@ dockers:
       - --label=org.opencontainers.image.version={{.Version}}
       - --platform=linux/arm64/v8
     use: buildx
-    extra_files:
-      - minimal-config.yaml
+    extra_files: []
     goos: linux
     goarch: arm64
     goarm:
@@ -76,8 +74,7 @@ dockers:
       - --label=org.opencontainers.image.version={{.Version}}
       - --platform=linux/arm/v7
     use: buildx
-    extra_files:
-      - minimal-config.yaml
+    extra_files: []
     goos: linux
     goarch: arm
     goarm: 7
@@ -92,8 +89,7 @@ dockers:
       - --label=org.opencontainers.image.version={{.Version}}
       - --platform=linux/arm/v6
     use: buildx
-    extra_files:
-      - minimal-config.yaml
+    extra_files: []
     goos: linux
     goarch: arm
     goarm: 6
