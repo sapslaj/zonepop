@@ -2,13 +2,15 @@ package config
 
 import (
 	"fmt"
-	"log"
 
+	lua "github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
+
+	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"
 	"github.com/sapslaj/zonepop/source"
 	"github.com/sapslaj/zonepop/source/vyos"
-	lua "github.com/yuin/gopher-lua"
 )
 
 type contextKey struct {
@@ -27,6 +29,7 @@ type Config interface {
 }
 
 type luaConfig struct {
+	logger               *zap.Logger
 	configFileName       string
 	state                *lua.LState
 	sourceDeclarations   map[string]*lua.LTable
@@ -35,6 +38,7 @@ type luaConfig struct {
 
 func NewLuaConfig(configFileName string) (Config, error) {
 	c := &luaConfig{
+		logger:         log.MustNewLogger().Named("lua_config"),
 		configFileName: configFileName,
 	}
 	return c, nil
@@ -47,12 +51,16 @@ func (c *luaConfig) Parse() error {
 	c.state = lua.NewState()
 	err := c.state.DoFile(c.configFileName)
 	if err != nil {
-		return err
+		newErr := fmt.Errorf("config: failed to execute configuration file %s: %w", c.configFileName, err)
+		c.logger.Error(newErr.Error())
+		return newErr
 	}
 	lv := c.state.Get(-1)
 	t, ok := lv.(*lua.LTable)
 	if !ok {
-		return fmt.Errorf("config file %q does not return a table", c.configFileName)
+		err = fmt.Errorf("config: config file %q does not return a table", c.configFileName)
+		c.logger.Error(err.Error())
+		return err
 	}
 	sourceDeclarations := make(map[string]*lua.LTable)
 	providerDeclarations := make(map[string]*lua.LTable)
@@ -62,12 +70,12 @@ func (c *luaConfig) Parse() error {
 			st.ForEach(func(sourceName, sourceDeclaration lua.LValue) {
 				sd, ok := sourceDeclaration.(*lua.LTable)
 				if !ok {
-					panic(fmt.Errorf("could not convert %#v to LTable", sourceDeclaration))
+					c.logger.Sugar().Panicf("config: could not convert %#v to LTable", sourceDeclaration)
 				}
 				sourceDeclarations[sourceName.String()] = sd
 			})
 			if !ok {
-				panic(fmt.Errorf("could not convert %#v to LTable", value))
+				c.logger.Sugar().Panicf("config: could not convert %#v to LTable", value)
 			}
 		}
 		if key.String() == "providers" {
@@ -75,12 +83,12 @@ func (c *luaConfig) Parse() error {
 			pt.ForEach(func(providerName, providerDeclaration lua.LValue) {
 				pd, ok := providerDeclaration.(*lua.LTable)
 				if !ok {
-					panic(fmt.Errorf("could not convert %#v to LTable", providerDeclaration))
+					c.logger.Sugar().Panicf("config: could not convert %#v to LTable", providerDeclaration)
 				}
 				providerDeclarations[providerName.String()] = pd
 			})
 			if !ok {
-				panic(fmt.Errorf("could not convert %#v to LTable", value))
+				c.logger.Sugar().Panicf("config: could not convert %#v to LTable", value)
 			}
 		}
 	})
@@ -92,16 +100,23 @@ func (c *luaConfig) Parse() error {
 func (c *luaConfig) Sources() ([]source.Source, error) {
 	sources := make([]source.Source, 0)
 	for sourceName, sourceDeclaration := range c.sourceDeclarations {
-		log.Printf("processing source %s", sourceName)
+		sourceLogger := c.logger.With(zap.String("source", sourceName)).Sugar()
+		sourceLogger.Infof("config: processing source %s", sourceName)
+
 		var source source.Source
 		var err error
+
 		kind := sourceDeclaration.RawGetInt(1).String()
 		sourceConfigRaw := sourceDeclaration.RawGetString("config")
 		sourceConfig, ok := sourceConfigRaw.(*lua.LTable)
 		if !ok {
-			return sources, fmt.Errorf("config for %s could not convert value %#v to LTable", sourceName, sourceConfigRaw)
+			err = fmt.Errorf("config: config for %s could not convert value %#v to LTable", sourceName, sourceConfigRaw)
+			sourceLogger.Error(err)
+			return sources, err
 		}
-		log.Printf("source %s is kind %s", sourceName, kind)
+
+		sourceLogger = sourceLogger.With("kind", kind)
+		sourceLogger.Infof("config: source %s is kind %s", sourceName, kind)
 		switch kind {
 		case "vyos_ssh":
 			neighbors, ok := sourceConfig.RawGetString("neighbors").(lua.LBool)
@@ -115,11 +130,14 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 				bool(neighbors),
 			)
 		}
+
 		if err != nil {
+			sourceLogger.Errorw("error configuring source", "err", err)
 			return sources, err
 		}
 		if source != nil {
 			sources = append(sources, source)
+			sourceLogger.Info("config: Finished configuration")
 		}
 	}
 	return sources, nil
@@ -128,30 +146,40 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 func (c *luaConfig) Providers() ([]provider.Provider, error) {
 	providers := make([]provider.Provider, 0)
 	for providerName, providerDeclaration := range c.providerDeclarations {
-		log.Printf("processing provider %s", providerName)
+		providerLogger := c.logger.With(zap.String("provider", providerName)).Sugar()
+		providerLogger.Infof("config: processing provider %s", providerName)
+
 		var provider provider.Provider
 		var err error
+
 		kind := providerDeclaration.RawGetInt(1).String()
 		providerConfigRaw := providerDeclaration.RawGetString("config")
 		providerConfig, ok := providerConfigRaw.(*lua.LTable)
 		if !ok {
-			return providers, fmt.Errorf("config for %s could not convert value %#v to LTable", providerName, providerConfigRaw)
+			err = fmt.Errorf("config: config for %s could not convert value %#v to LTable", providerName, providerConfigRaw)
+			providerLogger.Error(err)
+			return providers, err
 		}
-		log.Printf("provider %s is kind %s", providerName, kind)
+
+		providerLogger = providerLogger.With("kind", kind)
+		providerLogger.Infof("config: provider %s is kind %s", providerName, kind)
 		switch kind {
 		case "aws_route53":
-			provider, err = aws.NewRoute53Provder(
+			provider, err = aws.NewRoute53Provider(
 				providerConfig.RawGetString("record_suffix").String(),
 				providerConfig.RawGetString("forward_zone_id").String(),
 				providerConfig.RawGetString("ipv4_reverse_zone_id").String(),
 				providerConfig.RawGetString("ipv6_reverse_zone_id").String(),
 			)
 		}
+
 		if err != nil {
+			providerLogger.Errorw("error configuring provider", "err", err)
 			return providers, err
 		}
 		if provider != nil {
 			providers = append(providers, provider)
+			providerLogger.Info("config: Finished configuration")
 		}
 	}
 	return providers, nil

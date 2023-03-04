@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -15,7 +16,7 @@ func defaultAWSConfig() (aws.Config, error) {
 func defaultR53Client() (*route53.Client, error) {
 	cfg, err := defaultAWSConfig()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get default AWS config: %w", err)
 	}
 	return route53.NewFromConfig(cfg), nil
 }

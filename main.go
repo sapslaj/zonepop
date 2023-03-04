@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -11,6 +10,8 @@ import (
 
 	"github.com/sapslaj/zonepop/config"
 	"github.com/sapslaj/zonepop/controller"
+	"github.com/sapslaj/zonepop/pkg/log"
+	"go.uber.org/zap"
 )
 
 var (
@@ -21,11 +22,14 @@ var (
 )
 
 func main() {
-	log.Printf("Starting ZonePop v" + VERSION)
+	logger := log.MustNewLogger().Named("main")
+	defer logger.Sync()
+	logger.Info("Starting ZonePop v" + VERSION)
+
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
-	go handleSigterm(cancel)
+	go handleSigterm(cancel, logger)
 
 	if *dryRun {
 		ctx = context.WithValue(ctx, config.DryRunContextKey, true)
@@ -33,31 +37,32 @@ func main() {
 
 	c, err := config.NewLuaConfig(*configFileName)
 	if err != nil {
-		panic(err)
+		logger.Sugar().Panicf("could not create new configuration: %v", err)
 	}
 	err = c.Parse()
 	if err != nil {
-		panic(err)
+		logger.Sugar().Panicf("could not parse configuration: %v", err)
 	}
 	sources, err := c.Sources()
 	if err != nil {
-		panic(err)
+		logger.Sugar().Panicf("could not get sources from configuration: %v", err)
 	}
 	providers, err := c.Providers()
 	if err != nil {
-		panic(err)
+		logger.Sugar().Panicf("could not get providers from configuration: %v", err)
 	}
 
 	ctrl := controller.Controller{
 		Sources:   sources,
 		Providers: providers,
 		Interval:  *interval,
+		Logger:    logger.Named("controller"),
 	}
 
 	if *once {
 		err := ctrl.RunOnce(ctx)
 		if err != nil {
-			panic(err)
+			logger.Sugar().Panicf("could not execute controller loop: %v", err)
 		}
 		os.Exit(0)
 		return
@@ -67,10 +72,10 @@ func main() {
 	ctrl.Run(ctx)
 }
 
-func handleSigterm(cancel func()) {
+func handleSigterm(cancel func(), logger *zap.Logger) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGTERM)
 	<-signals
-	log.Printf("Received SIGTERM. Terminating...")
+	logger.Info("Received SIGTERM. Terminating...")
 	cancel()
 }

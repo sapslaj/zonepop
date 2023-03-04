@@ -2,14 +2,16 @@ package aws
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
+	"go.uber.org/zap"
 
 	"github.com/sapslaj/zonepop/endpoint"
+	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/pkg/utils"
 	"github.com/sapslaj/zonepop/provider"
 )
@@ -23,6 +25,7 @@ type route53Provider struct {
 	ipv6ReverseZoneID   string
 	ipv6ReverseZoneName string
 	client              *route53.Client
+	logger              *zap.Logger
 }
 
 func getRoute53ZoneName(ctx context.Context, client *route53.Client, zoneID string) (string, error) {
@@ -30,15 +33,15 @@ func getRoute53ZoneName(ctx context.Context, client *route53.Client, zoneID stri
 		Id: aws.String(zoneID),
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("could not get hosted zone information for %s: %w", zoneID, err)
 	}
 	return aws.ToString(ghzout.HostedZone.Name), nil
 }
 
-func NewRoute53Provder(recordSuffix, forwardZoneID, ipv4ReverseZoneID, ipv6ReverseZoneID string) (provider.Provider, error) {
+func NewRoute53Provider(recordSuffix, forwardZoneID, ipv4ReverseZoneID, ipv6ReverseZoneID string) (provider.Provider, error) {
 	client, err := defaultR53Client()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get default Route53 client: %w", err)
 	}
 	p := &route53Provider{
 		recordSuffix:      recordSuffix,
@@ -46,6 +49,7 @@ func NewRoute53Provder(recordSuffix, forwardZoneID, ipv4ReverseZoneID, ipv6Rever
 		ipv4ReverseZoneID: ipv4ReverseZoneID,
 		ipv6ReverseZoneID: ipv6ReverseZoneID,
 		client:            client,
+		logger:            log.MustNewLogger().Named("aws_route53_provider"),
 	}
 	return p, nil
 }
@@ -53,14 +57,17 @@ func NewRoute53Provder(recordSuffix, forwardZoneID, ipv4ReverseZoneID, ipv6Rever
 func (p *route53Provider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	err := p.updateForward(ctx, endpoints)
 	if err != nil {
+		p.logger.Sugar().Errorw("failed to update forward lookup zone", "err", err)
 		return err
 	}
 	err = p.updateIPv4Reverse(ctx, endpoints)
 	if err != nil {
+		p.logger.Sugar().Errorw("failed to update IPv4 reverse lookup zone", "err", err)
 		return err
 	}
 	err = p.updateIPv6Reverse(ctx, endpoints)
 	if err != nil {
+		p.logger.Sugar().Errorw("failed to update IPv6 reverse lookup zone", "err", err)
 		return err
 	}
 	return nil
@@ -68,12 +75,13 @@ func (p *route53Provider) UpdateEndpoints(ctx context.Context, endpoints []*endp
 
 func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	if p.forwardZoneID == "" {
-		log.Printf("provider/aws/route53: Forward lookup zone disabled")
+		p.logger.Warn("Forward lookup zone disabled")
 		return nil
 	}
 	if p.forwardZoneID != "" && p.forwardZoneName == "" {
 		forwardZoneName, err := getRoute53ZoneName(ctx, p.client, p.forwardZoneID)
 		if err != nil {
+			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
 		p.forwardZoneName = forwardZoneName
@@ -95,7 +103,7 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		ipv4 := make([]string, 0)
 		ipv6 := make([]string, 0)
 		if len(endpoints) == 0 {
-			log.Printf("provider/aws/route53: No endpoints for hostname %q", hostname)
+			p.logger.Sugar().Warnf("No endpoints for hostname %q", hostname)
 			continue
 		}
 		for _, endpoint := range endpoints {
@@ -129,12 +137,13 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 
 func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	if p.ipv4ReverseZoneID == "" {
-		log.Printf("provider/aws/route53: IPv4 reverse lookup zone disabled")
+		p.logger.Warn("IPv4 reverse lookup zone disabled")
 		return nil
 	}
 	if p.ipv4ReverseZoneName == "" {
 		ipv4ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.ipv4ReverseZoneID)
 		if err != nil {
+			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
 		p.ipv4ReverseZoneName = ipv4ReverseZoneName
@@ -144,19 +153,30 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 	for _, endpoint := range endpoints {
 		hostname := endpoint.Hostname
 		for _, ipv4 := range endpoint.IPv4s {
+			addrLogger := p.logger.Sugar().With(
+				"addr", ipv4,
+				"zone", p.ipv4ReverseZoneName,
+			)
 			if hostname == "" {
 				hostname = "ip-" + strings.ReplaceAll(ipv4, ".", "-")
+				addrLogger.Infof("No hostname defined for endpoint, using generated hostname of %s", hostname)
 			}
+			addrLogger = addrLogger.With("hostname", hostname)
 			fits, err := utils.FitsInReverseZone(ipv4, p.ipv4ReverseZoneName)
 			if err != nil {
+				addrLogger.Errorw(
+					"could not determine if address fits in reverse zone",
+					"err", err,
+				)
 				return err
 			}
 			if !fits {
-				log.Printf("provider/aws/route53: IPv4 %q does not fit in zone %q", ipv4, p.ipv4ReverseZoneName)
+				addrLogger.Warnf("IPv4 %q does not fit in zone %q", ipv4, p.ipv4ReverseZoneName)
 				continue
 			}
 			ptr, err := utils.ReverseAddr(ipv4)
 			if err != nil {
+				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
 			}
 			changes = append(changes, p.dnsChange(
@@ -177,12 +197,13 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 
 func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	if p.ipv6ReverseZoneID == "" {
-		log.Printf("provider/aws/route53: IPv6 reverse lookup zone disabled")
+		p.logger.Warn("IPv6 reverse lookup zone disabled")
 		return nil
 	}
 	if p.ipv6ReverseZoneName == "" {
 		ipv6ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.ipv6ReverseZoneID)
 		if err != nil {
+			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
 		p.ipv6ReverseZoneName = ipv6ReverseZoneName
@@ -193,22 +214,32 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 		hostname := endpoint.Hostname
 		if hostname == "" {
 			if len(endpoint.IPv4s) == 0 {
-				log.Printf("provider/aws/route53: Cannot generate hostname for endpoint due to missing IPv4 address.")
+				p.logger.Warn("Cannot generate hostname for endpoint due to missing IPv4 address.")
 				return nil
 			}
 			hostname = "ip-" + strings.ReplaceAll(endpoint.IPv4s[0], ".", "-")
+			p.logger.Sugar().Infof("No hostname defined for endpoint, using generated hostname of %s", hostname)
 		}
 		for _, ipv6 := range endpoint.IPv6s {
+			addrLogger := p.logger.Sugar().With(
+				"addr", ipv6,
+				"zone", p.ipv6ReverseZoneName,
+			)
 			fits, err := utils.FitsInReverseZone(ipv6, p.ipv6ReverseZoneName)
 			if err != nil {
+				addrLogger.Errorw(
+					"could not determine if address fits in reverse zone",
+					"err", err,
+				)
 				return err
 			}
 			if !fits {
-				log.Printf("provider/aws/route53: IPv6 %q does not fit in zone %q", ipv6, p.ipv6ReverseZoneName)
+				addrLogger.Warnf("IPv6 %q does not fit in zone %q", ipv6, p.ipv6ReverseZoneName)
 				continue
 			}
 			ptr, err := utils.ReverseAddr(ipv6)
 			if err != nil {
+				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
 			}
 			changes = append(changes, p.dnsChange(
