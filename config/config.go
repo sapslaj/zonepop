@@ -5,7 +5,9 @@ import (
 
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
+	luar "layeh.com/gopher-luar"
 
+	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"
@@ -21,6 +23,10 @@ func (k *contextKey) String() string { return "provider context value " + k.name
 
 // DryRun is a context key. It is used to tell components to not make any changes.
 var DryRunContextKey = &contextKey{"dry-run"}
+
+type EndpointFilterFunc func(*endpoint.Endpoint) bool
+
+var defaultEndpointFilterFunc EndpointFilterFunc = func(_ *endpoint.Endpoint) bool { return true }
 
 type Config interface {
 	Parse() error
@@ -165,11 +171,15 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 		providerLogger.Infof("config: provider %s is kind %s", providerName, kind)
 		switch kind {
 		case "aws_route53":
+			forwardFilterFunc := c.createEndpointFilterFunction(providerConfig, "forward_lookup_filter")
+			reverseFilterFunc := c.createEndpointFilterFunction(providerConfig, "reverse_lookup_filter")
 			provider, err = aws.NewRoute53Provider(
 				providerConfig.RawGetString("record_suffix").String(),
 				providerConfig.RawGetString("forward_zone_id").String(),
 				providerConfig.RawGetString("ipv4_reverse_zone_id").String(),
 				providerConfig.RawGetString("ipv6_reverse_zone_id").String(),
+				forwardFilterFunc,
+				reverseFilterFunc,
 			)
 		}
 
@@ -183,4 +193,48 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 		}
 	}
 	return providers, nil
+}
+
+func (c *luaConfig) endpointToLTable(e *endpoint.Endpoint) *lua.LTable {
+	lt := c.state.NewTable()
+	lt.RawSetString("hostname", luar.New(c.state, e.Hostname))
+	lt.RawSetString("ipv4s", luar.New(c.state, e.IPv4s))
+	lt.RawSetString("ipv6s", luar.New(c.state, e.IPv6s))
+	lt.RawSetString("record_ttl", luar.New(c.state, e.RecordTTL))
+	lt.RawSetString("source_properties", luar.New(c.state, e.SourceProperties))
+	lt.RawSetString("provider_properties", luar.New(c.state, e.ProviderProperties))
+	return lt
+}
+
+func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) EndpointFilterFunc {
+	luaFunc, ok := table.RawGetString(key).(*lua.LFunction)
+	if !ok {
+		c.logger.Sugar().Infof("no %s endpoint filter function defined", key)
+		return defaultEndpointFilterFunc
+	}
+	return func(e *endpoint.Endpoint) bool {
+		co, _ := c.state.NewThread()
+		result := true
+		for {
+			st, err, values := c.state.Resume(co, luaFunc, c.endpointToLTable(e))
+
+			if st == lua.ResumeError {
+				c.logger.Sugar().Panicf("endpoint filter lua.ResumeError: %v", err)
+				break
+			}
+
+			for _, lv := range values {
+				if r, ok := lv.(lua.LBool); ok {
+					result = bool(r)
+				}
+			}
+
+			if st == lua.ResumeOK {
+				c.logger.Sugar().Debugf("endpoint filter call success")
+				break
+			}
+
+		}
+		return result
+	}
 }

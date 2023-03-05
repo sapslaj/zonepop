@@ -17,6 +17,8 @@ import (
 )
 
 type route53Provider struct {
+	forwardLookupFilter func(*endpoint.Endpoint) bool
+	reverseLookupFilter func(*endpoint.Endpoint) bool
 	recordSuffix        string
 	forwardZoneID       string
 	forwardZoneName     string
@@ -38,34 +40,45 @@ func getRoute53ZoneName(ctx context.Context, client *route53.Client, zoneID stri
 	return aws.ToString(ghzout.HostedZone.Name), nil
 }
 
-func NewRoute53Provider(recordSuffix, forwardZoneID, ipv4ReverseZoneID, ipv6ReverseZoneID string) (provider.Provider, error) {
+func NewRoute53Provider(
+	recordSuffix string,
+	forwardZoneID string,
+	ipv4ReverseZoneID string,
+	ipv6ReverseZoneID string,
+	forwardLookupFilter func(*endpoint.Endpoint) bool,
+	reverseLookupFilter func(*endpoint.Endpoint) bool,
+) (provider.Provider, error) {
 	client, err := defaultR53Client()
 	if err != nil {
 		return nil, fmt.Errorf("could not get default Route53 client: %w", err)
 	}
 	p := &route53Provider{
-		recordSuffix:      recordSuffix,
-		forwardZoneID:     forwardZoneID,
-		ipv4ReverseZoneID: ipv4ReverseZoneID,
-		ipv6ReverseZoneID: ipv6ReverseZoneID,
-		client:            client,
-		logger:            log.MustNewLogger().Named("aws_route53_provider"),
+		forwardLookupFilter: forwardLookupFilter,
+		reverseLookupFilter: reverseLookupFilter,
+		recordSuffix:        recordSuffix,
+		forwardZoneID:       forwardZoneID,
+		ipv4ReverseZoneID:   ipv4ReverseZoneID,
+		ipv6ReverseZoneID:   ipv6ReverseZoneID,
+		client:              client,
+		logger:              log.MustNewLogger().Named("aws_route53_provider"),
 	}
 	return p, nil
 }
 
 func (p *route53Provider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
-	err := p.updateForward(ctx, endpoints)
+	forwardEndpoints := utils.Filter(p.forwardLookupFilter, endpoints)
+	err := p.updateForward(ctx, forwardEndpoints)
 	if err != nil {
 		p.logger.Sugar().Errorw("failed to update forward lookup zone", "err", err)
 		return err
 	}
-	err = p.updateIPv4Reverse(ctx, endpoints)
+	reverseEndpoints := utils.Filter(p.reverseLookupFilter, endpoints)
+	err = p.updateIPv4Reverse(ctx, reverseEndpoints)
 	if err != nil {
 		p.logger.Sugar().Errorw("failed to update IPv4 reverse lookup zone", "err", err)
 		return err
 	}
-	err = p.updateIPv6Reverse(ctx, endpoints)
+	err = p.updateIPv6Reverse(ctx, reverseEndpoints)
 	if err != nil {
 		p.logger.Sugar().Errorw("failed to update IPv6 reverse lookup zone", "err", err)
 		return err

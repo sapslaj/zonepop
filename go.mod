@@ -9,6 +9,7 @@ require (
 	github.com/yuin/gopher-lua v1.1.0
 	go.uber.org/zap v1.24.0
 	golang.org/x/crypto v0.6.0
+	layeh.com/gopher-luar v1.0.10
 )
 
 require (
