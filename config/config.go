@@ -3,10 +3,12 @@ package config
 import (
 	"fmt"
 
+	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	luar "layeh.com/gopher-luar"
 
+	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
@@ -15,18 +17,7 @@ import (
 	"github.com/sapslaj/zonepop/source/vyos"
 )
 
-type contextKey struct {
-	name string
-}
-
-func (k *contextKey) String() string { return "provider context value " + k.name }
-
-// DryRun is a context key. It is used to tell components to not make any changes.
-var DryRunContextKey = &contextKey{"dry-run"}
-
-type EndpointFilterFunc func(*endpoint.Endpoint) bool
-
-var defaultEndpointFilterFunc EndpointFilterFunc = func(_ *endpoint.Endpoint) bool { return true }
+var defaultEndpointFilterFunc configtypes.EndpointFilterFunc = func(_ *endpoint.Endpoint) bool { return true }
 
 type Config interface {
 	Parse() error
@@ -125,16 +116,13 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 		sourceLogger.Infof("config: source %s is kind %s", sourceName, kind)
 		switch kind {
 		case "vyos_ssh":
-			neighbors, ok := sourceConfig.RawGetString("neighbors").(lua.LBool)
-			if !ok {
-				neighbors = true
+			var vyosConfig vyos.VyOSSSHSourceConfig
+			err = gluamapper.Map(sourceConfig, &vyosConfig)
+			if err != nil {
+				sourceLogger.Errorw("error configuring source", "err", err)
+				return sources, err
 			}
-			source, err = vyos.NewVyOSSSHSource(
-				sourceConfig.RawGetString("host").String(),
-				sourceConfig.RawGetString("username").String(),
-				sourceConfig.RawGetString("password").String(),
-				bool(neighbors),
-			)
+			source, err = vyos.NewVyOSSSHSource(vyosConfig)
 		}
 
 		if err != nil {
@@ -173,11 +161,15 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 		case "aws_route53":
 			forwardFilterFunc := c.createEndpointFilterFunction(providerConfig, "forward_lookup_filter")
 			reverseFilterFunc := c.createEndpointFilterFunction(providerConfig, "reverse_lookup_filter")
+			var r53Config aws.Route53ProviderConfig
+			err = gluamapper.Map(providerConfig, &r53Config)
+			if err != nil {
+				providerLogger.Errorw("error configuring provider", "err", err)
+				return providers, err
+			}
+
 			provider, err = aws.NewRoute53Provider(
-				providerConfig.RawGetString("record_suffix").String(),
-				providerConfig.RawGetString("forward_zone_id").String(),
-				providerConfig.RawGetString("ipv4_reverse_zone_id").String(),
-				providerConfig.RawGetString("ipv6_reverse_zone_id").String(),
+				r53Config,
 				forwardFilterFunc,
 				reverseFilterFunc,
 			)
@@ -206,7 +198,7 @@ func (c *luaConfig) endpointToLTable(e *endpoint.Endpoint) *lua.LTable {
 	return lt
 }
 
-func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) EndpointFilterFunc {
+func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) configtypes.EndpointFilterFunc {
 	luaFunc, ok := table.RawGetString(key).(*lua.LFunction)
 	if !ok {
 		c.logger.Sugar().Infof("no %s endpoint filter function defined", key)

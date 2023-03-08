@@ -7,7 +7,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/sapslaj/zonepop/config"
+	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/source"
@@ -53,7 +53,7 @@ func (c *Controller) RunOnce(ctx context.Context) error {
 			"provider_properties", endpoint.ProviderProperties,
 		)
 	}
-	dryRun, ok := ctx.Value(config.DryRunContextKey).(bool)
+	dryRun, ok := ctx.Value(configtypes.DryRunContextKey).(bool)
 	if !ok {
 		dryRun = false
 	}

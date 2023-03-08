@@ -10,22 +10,27 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"go.uber.org/zap"
 
+	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/pkg/utils"
 	"github.com/sapslaj/zonepop/provider"
 )
 
+type Route53ProviderConfig struct {
+	RecordSuffix        string
+	ForwardZoneID       string
+	ForwardZoneName     string
+	Ipv4ReverseZoneID   string
+	Ipv4ReverseZoneName string
+	Ipv6ReverseZoneID   string
+	Ipv6ReverseZoneName string
+}
+
 type route53Provider struct {
-	forwardLookupFilter func(*endpoint.Endpoint) bool
-	reverseLookupFilter func(*endpoint.Endpoint) bool
-	recordSuffix        string
-	forwardZoneID       string
-	forwardZoneName     string
-	ipv4ReverseZoneID   string
-	ipv4ReverseZoneName string
-	ipv6ReverseZoneID   string
-	ipv6ReverseZoneName string
+	config              Route53ProviderConfig
+	forwardLookupFilter configtypes.EndpointFilterFunc
+	reverseLookupFilter configtypes.EndpointFilterFunc
 	client              *route53.Client
 	logger              *zap.Logger
 }
@@ -41,24 +46,18 @@ func getRoute53ZoneName(ctx context.Context, client *route53.Client, zoneID stri
 }
 
 func NewRoute53Provider(
-	recordSuffix string,
-	forwardZoneID string,
-	ipv4ReverseZoneID string,
-	ipv6ReverseZoneID string,
-	forwardLookupFilter func(*endpoint.Endpoint) bool,
-	reverseLookupFilter func(*endpoint.Endpoint) bool,
+	providerConfig Route53ProviderConfig,
+	forwardLookupFilter configtypes.EndpointFilterFunc,
+	reverseLookupFilter configtypes.EndpointFilterFunc,
 ) (provider.Provider, error) {
 	client, err := defaultR53Client()
 	if err != nil {
 		return nil, fmt.Errorf("could not get default Route53 client: %w", err)
 	}
 	p := &route53Provider{
+		config:              providerConfig,
 		forwardLookupFilter: forwardLookupFilter,
 		reverseLookupFilter: reverseLookupFilter,
-		recordSuffix:        recordSuffix,
-		forwardZoneID:       forwardZoneID,
-		ipv4ReverseZoneID:   ipv4ReverseZoneID,
-		ipv6ReverseZoneID:   ipv6ReverseZoneID,
 		client:              client,
 		logger:              log.MustNewLogger().Named("aws_route53_provider"),
 	}
@@ -87,21 +86,21 @@ func (p *route53Provider) UpdateEndpoints(ctx context.Context, endpoints []*endp
 }
 
 func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoint.Endpoint) error {
-	if p.forwardZoneID == "" {
+	if p.config.ForwardZoneID == "" {
 		p.logger.Warn("Forward lookup zone disabled")
 		return nil
 	}
-	if p.forwardZoneID != "" && p.forwardZoneName == "" {
-		forwardZoneName, err := getRoute53ZoneName(ctx, p.client, p.forwardZoneID)
+	if p.config.ForwardZoneID != "" && p.config.ForwardZoneName == "" {
+		forwardZoneName, err := getRoute53ZoneName(ctx, p.client, p.config.ForwardZoneID)
 		if err != nil {
 			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
-		p.forwardZoneName = forwardZoneName
+		p.config.ForwardZoneName = forwardZoneName
 	}
 
-	if p.recordSuffix == "" {
-		p.recordSuffix = "." + p.forwardZoneName
+	if p.config.RecordSuffix == "" {
+		p.config.RecordSuffix = "." + p.config.ForwardZoneName
 	}
 
 	hostnameEndpoints := make(map[string][]*endpoint.Endpoint)
@@ -125,7 +124,7 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		}
 		if len(ipv4) > 0 {
 			changes = append(changes, p.dnsChange(
-				utils.DNSSafeName(hostname)+p.recordSuffix,
+				utils.DNSSafeName(hostname)+p.config.RecordSuffix,
 				ipv4,
 				"A",
 				endpoints[0].RecordTTL,
@@ -133,15 +132,19 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		}
 		if len(ipv6) > 0 {
 			changes = append(changes, p.dnsChange(
-				utils.DNSSafeName(hostname)+p.recordSuffix,
+				utils.DNSSafeName(hostname)+p.config.RecordSuffix,
 				ipv6,
 				"AAAA",
 				endpoints[0].RecordTTL,
 			))
 		}
 	}
+	if len(changes) == 0 {
+		p.logger.Info("No forward lookup changes.")
+		return nil
+	}
 	_, err := p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
-		HostedZoneId: aws.String(p.forwardZoneID),
+		HostedZoneId: aws.String(p.config.ForwardZoneID),
 		ChangeBatch:  &types.ChangeBatch{Changes: changes},
 	})
 
@@ -149,17 +152,17 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 }
 
 func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*endpoint.Endpoint) error {
-	if p.ipv4ReverseZoneID == "" {
+	if p.config.Ipv4ReverseZoneID == "" {
 		p.logger.Warn("IPv4 reverse lookup zone disabled")
 		return nil
 	}
-	if p.ipv4ReverseZoneName == "" {
-		ipv4ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.ipv4ReverseZoneID)
+	if p.config.Ipv4ReverseZoneName == "" {
+		ipv4ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.config.Ipv4ReverseZoneID)
 		if err != nil {
 			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
-		p.ipv4ReverseZoneName = ipv4ReverseZoneName
+		p.config.Ipv4ReverseZoneName = ipv4ReverseZoneName
 	}
 
 	changes := make([]types.Change, 0)
@@ -168,14 +171,14 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 		for _, ipv4 := range endpoint.IPv4s {
 			addrLogger := p.logger.Sugar().With(
 				"addr", ipv4,
-				"zone", p.ipv4ReverseZoneName,
+				"zone", p.config.Ipv4ReverseZoneName,
 			)
 			if hostname == "" {
 				hostname = "ip-" + strings.ReplaceAll(ipv4, ".", "-")
 				addrLogger.Infof("No hostname defined for endpoint, using generated hostname of %s", hostname)
 			}
 			addrLogger = addrLogger.With("hostname", hostname)
-			fits, err := utils.FitsInReverseZone(ipv4, p.ipv4ReverseZoneName)
+			fits, err := utils.FitsInReverseZone(ipv4, p.config.Ipv4ReverseZoneName)
 			if err != nil {
 				addrLogger.Errorw(
 					"could not determine if address fits in reverse zone",
@@ -184,7 +187,7 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 				return err
 			}
 			if !fits {
-				addrLogger.Warnf("IPv4 %q does not fit in zone %q", ipv4, p.ipv4ReverseZoneName)
+				addrLogger.Warnf("IPv4 %q does not fit in zone %q", ipv4, p.config.Ipv4ReverseZoneName)
 				continue
 			}
 			ptr, err := utils.ReverseAddr(ipv4)
@@ -194,14 +197,18 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 			}
 			changes = append(changes, p.dnsChange(
 				ptr,
-				[]string{utils.DNSSafeName(hostname) + p.recordSuffix},
+				[]string{utils.DNSSafeName(hostname) + p.config.RecordSuffix},
 				"PTR",
 				endpoint.RecordTTL,
 			))
 		}
 	}
+	if len(changes) == 0 {
+		p.logger.Info("No reverse IPv4 changes.")
+		return nil
+	}
 	_, err := p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
-		HostedZoneId: aws.String(p.ipv4ReverseZoneID),
+		HostedZoneId: aws.String(p.config.Ipv4ReverseZoneID),
 		ChangeBatch:  &types.ChangeBatch{Changes: changes},
 	})
 
@@ -209,17 +216,17 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 }
 
 func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*endpoint.Endpoint) error {
-	if p.ipv6ReverseZoneID == "" {
+	if p.config.Ipv6ReverseZoneID == "" {
 		p.logger.Warn("IPv6 reverse lookup zone disabled")
 		return nil
 	}
-	if p.ipv6ReverseZoneName == "" {
-		ipv6ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.ipv6ReverseZoneID)
+	if p.config.Ipv6ReverseZoneName == "" {
+		ipv6ReverseZoneName, err := getRoute53ZoneName(ctx, p.client, p.config.Ipv6ReverseZoneID)
 		if err != nil {
 			p.logger.Sugar().Errorw("could not get Route53 zone name", "err", err)
 			return err
 		}
-		p.ipv6ReverseZoneName = ipv6ReverseZoneName
+		p.config.Ipv6ReverseZoneName = ipv6ReverseZoneName
 	}
 
 	changes := make([]types.Change, 0)
@@ -236,9 +243,9 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 		for _, ipv6 := range endpoint.IPv6s {
 			addrLogger := p.logger.Sugar().With(
 				"addr", ipv6,
-				"zone", p.ipv6ReverseZoneName,
+				"zone", p.config.Ipv6ReverseZoneName,
 			)
-			fits, err := utils.FitsInReverseZone(ipv6, p.ipv6ReverseZoneName)
+			fits, err := utils.FitsInReverseZone(ipv6, p.config.Ipv6ReverseZoneName)
 			if err != nil {
 				addrLogger.Errorw(
 					"could not determine if address fits in reverse zone",
@@ -247,7 +254,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 				return err
 			}
 			if !fits {
-				addrLogger.Warnf("IPv6 %q does not fit in zone %q", ipv6, p.ipv6ReverseZoneName)
+				addrLogger.Warnf("IPv6 %q does not fit in zone %q", ipv6, p.config.Ipv6ReverseZoneName)
 				continue
 			}
 			ptr, err := utils.ReverseAddr(ipv6)
@@ -257,14 +264,18 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 			}
 			changes = append(changes, p.dnsChange(
 				ptr,
-				[]string{utils.DNSSafeName(hostname) + p.recordSuffix},
+				[]string{utils.DNSSafeName(hostname) + p.config.RecordSuffix},
 				"PTR",
 				endpoint.RecordTTL,
 			))
 		}
 	}
+	if len(changes) == 0 {
+		p.logger.Info("No reverse IPv6 changes.")
+		return nil
+	}
 	_, err := p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
-		HostedZoneId: aws.String(p.ipv6ReverseZoneID),
+		HostedZoneId: aws.String(p.config.Ipv6ReverseZoneID),
 		ChangeBatch:  &types.ChangeBatch{Changes: changes},
 	})
 

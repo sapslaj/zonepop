@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/sapslaj/zonepop/config"
+	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/controller"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"go.uber.org/zap"
@@ -32,7 +33,7 @@ func main() {
 	go handleSigterm(cancel, logger)
 
 	if *dryRun {
-		ctx = context.WithValue(ctx, config.DryRunContextKey, true)
+		ctx = context.WithValue(ctx, configtypes.DryRunContextKey, true)
 	}
 
 	c, err := config.NewLuaConfig(*configFileName)

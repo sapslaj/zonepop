@@ -12,38 +12,40 @@ import (
 	"github.com/sapslaj/zonepop/source"
 )
 
-type vyosSSHSource struct {
-	host             string
-	username         string
-	password         string
-	collectNeighbors bool
-	logger           *zap.Logger
+type VyOSSSHSourceConfig struct {
+	Host                 string
+	Username             string
+	Password             string
+	CollectIPv6Neighbors bool
+	RecordTTL            int64
 }
 
-func NewVyOSSSHSource(host, username, password string, collectNeighbors bool) (source.Source, error) {
+type vyosSSHSource struct {
+	config VyOSSSHSourceConfig
+	logger *zap.Logger
+}
+
+func NewVyOSSSHSource(sourceConfig VyOSSSHSourceConfig) (source.Source, error) {
 	return &vyosSSHSource{
-		host:             host,
-		username:         username,
-		password:         password,
-		collectNeighbors: collectNeighbors,
+		config: sourceConfig,
 		logger: log.MustNewLogger().Named("vyos_ssh_source").With(
-			zap.String("host", host),
-			zap.String("username", username),
+			zap.String("host", sourceConfig.Host),
+			zap.String("username", sourceConfig.Username),
 		),
 	}, nil
 }
 
 func (s *vyosSSHSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
-	connection, err := ssh_connection.Connect(s.host, s.username, s.password)
+	connection, err := ssh_connection.Connect(s.config.Host, s.config.Username, s.config.Password)
 
 	if err != nil {
-		newErr := fmt.Errorf("could not connect to host %s: %w", s.host, err)
+		newErr := fmt.Errorf("could not connect to host %s: %w", s.config.Host, err)
 		s.logger.Error(newErr.Error())
 		return nil, newErr
 	}
 	defer connection.Disconnect()
 
-	leases, err := s.getLeases(connection, s.collectNeighbors)
+	leases, err := s.getLeases(connection, s.config.CollectIPv6Neighbors)
 	if err != nil {
 		newErr := fmt.Errorf("could not get leases: %w", err)
 		s.logger.Error(newErr.Error())
