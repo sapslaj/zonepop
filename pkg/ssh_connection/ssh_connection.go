@@ -25,7 +25,7 @@ func Connect(host, username, password string) (*SSHConnection, error) {
 	c.Config = &ssh.ClientConfig{
 		User:            username,
 		Auth:            []ssh.AuthMethod{ssh.Password(password)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: make this not harcoded
 	}
 	client, err := ssh.Dial("tcp", host, c.Config)
 	c.Client = client

@@ -10,7 +10,7 @@ linters:
   disabled:
     - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
   presets:
-    # - bugs
+    - bugs
     # - comment
     # - complexity
     # - error
@@ -22,3 +22,8 @@ linters:
     # - style
     # - test
     # - unused
+
+issues:
+  exclude-rules:
+    - path: pkg/ssh_connection/ssh_connection.go
+      text: Use of ssh InsecureIgnoreHostKey should be audited
