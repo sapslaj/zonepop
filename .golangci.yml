@@ -52,6 +52,7 @@ issues:
       linters:
         - funlen
         - dupl
+        - forcetypeassert
     - path: main\.go
       linters:
         # flags are known globals

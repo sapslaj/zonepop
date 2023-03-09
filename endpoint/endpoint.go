@@ -28,7 +28,10 @@ func FromLuaTable(state *lua.LState, lt *lua.LTable) *Endpoint {
 		NameFunc: gluamapper.ToUpperCamelCase,
 	})
 	var e *Endpoint
-	structMapper.Map(lt, &e)
+	err := structMapper.Map(lt, &e)
+	if err != nil {
+		return nil
+	}
 	// don't want CamelCase keys in properties, so have to jump through a few hoops
 	e.SourceProperties = LuaTableToMap[string, any](state, lt.RawGetString("source_properties"))
 	e.ProviderProperties = LuaTableToMap[string, any](state, lt.RawGetString("provider_properties"))
