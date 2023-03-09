@@ -33,7 +33,6 @@ linters:
     - unparam # TODO
     - varnamelen # TODO
     - wastedassign # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
-    - whitespace # TODO
     - wrapcheck # TODO
     - wsl # TODO
 
