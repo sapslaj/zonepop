@@ -1,0 +1,22 @@
+linters:
+  enable:
+    - errcheck
+    - gosimple
+    - govet
+    - ineffassign
+    - staticcheck
+    - typecheck
+    - unused
+  presets:
+    # - bugs
+    # - comment
+    # - complexity
+    # - error
+    # - format
+    # - metalinter
+    # - module
+    # - performance
+    # - sql
+    # - style
+    # - test
+    # - unused
