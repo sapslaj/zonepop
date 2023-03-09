@@ -12,7 +12,7 @@ linters:
   presets:
     - bugs
     - comment
-    # - complexity
+    - complexity
     # - error
     # - format
     # - metalinter
@@ -23,9 +23,18 @@ linters:
     # - test
     # - unused
 
+linters-settings:
+  cyclop:
+    max-complexity: 15
+  funlen:
+    lines: 100
+
 issues:
   exclude:
     - Line contains TODO/BUG/FIXME # godox
   exclude-rules:
     - path: pkg/ssh_connection/ssh_connection.go
       text: Use of ssh InsecureIgnoreHostKey should be audited
+    - path: _test\.go
+      linters:
+        - funlen
