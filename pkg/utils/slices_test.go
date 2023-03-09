@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
@@ -43,6 +44,27 @@ func TestFilter(t *testing.T) {
 
 	for desc, tc := range tests {
 		got := Filter(tc.f, tc.input)
+		if !reflect.DeepEqual(tc.expected, got) {
+			t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
+		}
+	}
+}
+
+func TestMap(t *testing.T) {
+	tests := map[string]struct {
+		input    []int
+		expected []string
+		f        func(int) string
+	}{
+		"run ints through Sprint": {
+			input:    []int{69, 420},
+			expected: []string{"69", "420"},
+			f:        func(i int) string { return fmt.Sprint(i) },
+		},
+	}
+
+	for desc, tc := range tests {
+		got := Map(tc.f, tc.input)
 		if !reflect.DeepEqual(tc.expected, got) {
 			t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
 		}

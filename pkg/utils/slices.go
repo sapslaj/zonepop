@@ -20,3 +20,12 @@ func Filter[V any](f func(V) bool, source []V) []V {
 	}
 	return result
 }
+
+// Map calls function f for each item in source slice.
+func Map[A any, B any](f func(A) B, source []A) []B {
+	result := make([]B, 0)
+	for i := 0; i < len(source); i++ {
+		result = append(result, f(source[i]))
+	}
+	return result
+}
