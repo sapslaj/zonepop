@@ -1,27 +1,43 @@
 linters:
-  enable:
-    - errcheck
-    - gosimple
-    - govet
-    - ineffassign
-    - staticcheck
-    - typecheck
-    - unused
-  disabled:
-    - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
   presets:
     - bugs
     - comment
     - complexity
-    # - error
-    # - format
-    # - metalinter
+    - error
+    - format
+    - import
+    - metalinter
     - module
     - performance
     - sql
-    # - style
-    # - test
-    # - unused
+    - style
+    - test
+    - unused
+  disable:
+    - exhaustruct # TODO
+    - gci # TODO
+    - gochecknoglobals # TODO
+    - gocritic # TODO
+    - goerr113 # TODO
+    - gofumpt # TODO
+    - gomnd # "magic numbers" are essential for stack-based environments
+    - ireturn # TODO
+    - lll # TODO
+    - nlreturn # TODO
+    - nonamedreturns # TODO
+    - paralleltest # TODO
+    - revive # TODO
+    - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
+    - stylecheck # TODO
+    - tagliatelle # disabled because we explicitly do not want this
+    - testpackage # TODO
+    - thelper # TODO
+    - unparam # TODO
+    - varnamelen # TODO
+    - wastedassign # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
+    - whitespace # TODO
+    - wrapcheck # TODO
+    - wsl # TODO
 
 linters-settings:
   cyclop:
@@ -38,3 +54,4 @@ issues:
     - path: _test\.go
       linters:
         - funlen
+        - dupl
