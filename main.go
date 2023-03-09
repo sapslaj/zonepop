@@ -24,7 +24,12 @@ var (
 
 func main() {
 	logger := log.MustNewLogger().Named("main")
-	defer logger.Sync()
+	defer func() {
+		err := logger.Sync()
+		if err != nil {
+			panic(err)
+		}
+	}()
 	logger.Info("Starting ZonePop v" + VERSION)
 
 	flag.Parse()

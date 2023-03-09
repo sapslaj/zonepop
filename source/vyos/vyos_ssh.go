@@ -54,7 +54,12 @@ func (s *vyosSSHSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, er
 		s.logger.Error(newErr.Error())
 		return nil, newErr
 	}
-	defer connection.Disconnect()
+	defer func() {
+		err := connection.Disconnect()
+		if err != nil {
+			panic(err)
+		}
+	}()
 
 	leases, err := s.getLeases(connection, s.config.CollectIPv6Neighbors)
 	if err != nil {

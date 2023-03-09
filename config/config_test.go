@@ -14,7 +14,10 @@ func testConfigFile(t *testing.T, contents string) (configFileName string) {
 	if err != nil {
 		t.Fatalf("testConfigFile encountered error when creating temp file: %v", err)
 	}
-	file.Write([]byte(contents))
+	_, err = file.Write([]byte(contents))
+	if err != nil {
+		t.Fatalf("testConfigFile encountered error when writing temp file: %v", err)
+	}
 	err = file.Close()
 	if err != nil {
 		t.Fatalf("testConfigFile encountered error when closing temp file: %v", err)
