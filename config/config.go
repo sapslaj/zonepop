@@ -230,7 +230,6 @@ func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) 
 				c.logger.Sugar().Debugf("endpoint filter call success")
 				break
 			}
-
 		}
 		return result
 	}
