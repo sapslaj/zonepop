@@ -1,5 +1,11 @@
 package endpoint
 
+import (
+	"github.com/yuin/gluamapper"
+	lua "github.com/yuin/gopher-lua"
+	luar "layeh.com/gopher-luar"
+)
+
 // Endpoint is a host configuration emitted from a source that contain all of
 // the information for a provider to manage DNS records.
 type Endpoint struct {
@@ -15,4 +21,65 @@ type Endpoint struct {
 	SourceProperties map[string]any `json:"source_properties,omitempty"`
 	// Additional key, value pairs for the provider
 	ProviderProperties map[string]any `json:"provider_properties,omitempty"`
+}
+
+func FromLuaTable(state *lua.LState, lt *lua.LTable) *Endpoint {
+	structMapper := gluamapper.NewMapper(gluamapper.Option{
+		NameFunc: gluamapper.ToUpperCamelCase,
+	})
+	var e *Endpoint
+	structMapper.Map(lt, &e)
+	// don't want CamelCase keys in properties, so have to jump through a few hoops
+	e.SourceProperties = LuaTableToMap[string, any](state, lt.RawGetString("source_properties"))
+	e.ProviderProperties = LuaTableToMap[string, any](state, lt.RawGetString("provider_properties"))
+	return e
+}
+
+func LuaTableToMap[K comparable, V any](state *lua.LState, lv lua.LValue) map[K]V {
+	result := make(map[K]V)
+	raw, ok := gluamapper.ToGoValue(lv, gluamapper.Option{
+		NameFunc: gluamapper.Id,
+	}).(map[any]any)
+	if !ok {
+		return nil
+	}
+	for k, v := range raw {
+		key, ok := k.(K)
+		if !ok {
+			continue
+		}
+		value, ok := v.(V)
+		if !ok {
+			continue
+		}
+		result[key] = value
+	}
+	return result
+}
+
+func (e *Endpoint) ToLuaTable(state *lua.LState) *lua.LTable {
+	lt := state.NewTable()
+	lt.RawSetString("record_ttl", lua.LNumber(e.RecordTTL))
+	lt.RawSetString("hostname", lua.LString(e.Hostname))
+	ipv4s := state.NewTable()
+	for _, ipv4 := range e.IPv4s {
+		ipv4s.Append(lua.LString(ipv4))
+	}
+	lt.RawSetString("ipv4s", ipv4s)
+	ipv6s := state.NewTable()
+	for _, ipv6 := range e.IPv6s {
+		ipv6s.Append(lua.LString(ipv6))
+	}
+	lt.RawSetString("ipv6s", ipv6s)
+	sourceProperties := state.NewTable()
+	for k, v := range e.SourceProperties {
+		sourceProperties.RawSetString(k, luar.New(state, v))
+	}
+	lt.RawSetString("source_properties", sourceProperties)
+	providerProperties := state.NewTable()
+	for k, v := range e.ProviderProperties {
+		providerProperties.RawSetString(k, luar.New(state, v))
+	}
+	lt.RawSetString("provider_properties", providerProperties)
+	return lt
 }
