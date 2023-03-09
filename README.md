@@ -1,5 +1,11 @@
 # ZonePop
 
+[![CI](https://github.com/sapslaj/zonepop/actions/workflows/ci.yaml/badge.svg)](https://github.com/sapslaj/zonepop/actions/workflows/ci.yaml)
+[![Coverage Status](https://coveralls.io/repos/github/sapslaj/zonepop/badge.svg?branch=main)](https://coveralls.io/github/sapslaj/zonepop?branch=main)
+[![GitHub release](https://img.shields.io/github/release/sapslaj/zonepop.svg)](https://github.com/sapslaj/zonepop/releases)
+[![go-doc](https://godoc.org/github.com/sapslaj/zonepop?status.svg)](https://godoc.org/github.com/sapslaj/zonepop)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sapslaj/zonepop)](https://goreportcard.com/report/github.com/sapslaj/zonepop)
+
 Dynamic DNS for the lazy sysadmin.
 
 ## What It Does
