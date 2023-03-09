@@ -20,14 +20,25 @@ type VyOSSSHSourceConfig struct {
 	RecordTTL            int64
 }
 
+type ConnectionClient interface {
+	Disconnect() error
+	Output(string) ([]byte, error)
+}
+type ConnectionClientConnect func(host, username, password string) (ConnectionClient, error)
+
 type vyosSSHSource struct {
-	config VyOSSSHSourceConfig
-	logger *zap.Logger
+	config                 VyOSSSHSourceConfig
+	logger                 *zap.Logger
+	connectionClentConnect ConnectionClientConnect
 }
 
 func NewVyOSSSHSource(sourceConfig VyOSSSHSourceConfig) (source.Source, error) {
+	connect := func(host, username, password string) (ConnectionClient, error) {
+		return ssh_connection.Connect(host, username, password)
+	}
 	return &vyosSSHSource{
-		config: sourceConfig,
+		config:                 sourceConfig,
+		connectionClentConnect: connect,
 		logger: log.MustNewLogger().Named("vyos_ssh_source").With(
 			zap.String("host", sourceConfig.Host),
 			zap.String("username", sourceConfig.Username),
@@ -36,7 +47,7 @@ func NewVyOSSSHSource(sourceConfig VyOSSSHSourceConfig) (source.Source, error) {
 }
 
 func (s *vyosSSHSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
-	connection, err := ssh_connection.Connect(s.config.Host, s.config.Username, s.config.Password)
+	connection, err := s.connectionClentConnect(s.config.Host, s.config.Username, s.config.Password)
 
 	if err != nil {
 		newErr := fmt.Errorf("could not connect to host %s: %w", s.config.Host, err)
@@ -66,11 +77,20 @@ func (s *vyosSSHSource) leasesToEndpoints(leases []*Lease) []*endpoint.Endpoint 
 }
 
 func (s *vyosSSHSource) leaseToEndpoint(lease *Lease) *endpoint.Endpoint {
+	var ipv6s []string
+	if s.config.CollectIPv6Neighbors {
+		// do some gymnastics to make sure ipv6s is not nil
+		if lease.IPv6s == nil {
+			ipv6s = make([]string, 0)
+		} else {
+			ipv6s = lease.IPv6s
+		}
+	}
 	return &endpoint.Endpoint{
 		Hostname:  lease.Hostname,
 		IPv4s:     []string{lease.IP},
-		IPv6s:     lease.IPv6s,
-		RecordTTL: 300,
+		IPv6s:     ipv6s,
+		RecordTTL: s.config.RecordTTL,
 		SourceProperties: map[string]any{
 			"dhcp_pool":        lease.Pool,
 			"hardware_address": lease.HardwareAddress,
@@ -78,7 +98,7 @@ func (s *vyosSSHSource) leaseToEndpoint(lease *Lease) *endpoint.Endpoint {
 	}
 }
 
-func (s *vyosSSHSource) getNeighbors(connection *ssh_connection.SSHConnection) ([]*Neighbor, error) {
+func (s *vyosSSHSource) getNeighbors(connection ConnectionClient) ([]*Neighbor, error) {
 	s.logger.Info("Getting IPv6 neighbors")
 	out, err := connection.Output("ip -f inet6 neigh show")
 	if err != nil {
@@ -89,7 +109,7 @@ func (s *vyosSSHSource) getNeighbors(connection *ssh_connection.SSHConnection) (
 	return ParseNeighborLines(string(out))
 }
 
-func (s *vyosSSHSource) getLeases(connection *ssh_connection.SSHConnection, neighbors bool) ([]*Lease, error) {
+func (s *vyosSSHSource) getLeases(connection ConnectionClient, neighbors bool) ([]*Lease, error) {
 	s.logger.Info("Getting leases")
 	out, err := connection.Output("/usr/libexec/vyos/op_mode/show_dhcp.py --leases --json")
 	if err != nil {
