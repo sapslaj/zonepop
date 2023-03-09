@@ -1,0 +1,68 @@
+package custom
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/yuin/gluamapper"
+	lua "github.com/yuin/gopher-lua"
+	"go.uber.org/zap"
+
+	"github.com/sapslaj/zonepop/endpoint"
+	"github.com/sapslaj/zonepop/pkg/log"
+	"github.com/sapslaj/zonepop/source"
+)
+
+type customLuaSource struct {
+	state         *lua.LState
+	endpointsFunc *lua.LFunction
+	logger        *zap.Logger
+}
+
+func NewCustomLuaSource(state *lua.LState, endpointsFunc *lua.LFunction) (source.Source, error) {
+	s := &customLuaSource{
+		state:         state,
+		endpointsFunc: endpointsFunc,
+		logger:        log.MustNewLogger().Named("custom_lua_source"),
+	}
+	return s, nil
+}
+
+func (s *customLuaSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
+	co, _ := s.state.NewThread()
+	var lt *lua.LTable
+	for {
+		st, err, values := s.state.Resume(co, s.endpointsFunc)
+
+		if st == lua.ResumeError {
+			return nil, fmt.Errorf("lua.ResumeError: %w", err)
+		}
+
+		for _, lv := range values {
+			if r, ok := lv.(*lua.LTable); ok {
+				lt = r
+			}
+		}
+
+		if st == lua.ResumeOK {
+			break
+		}
+	}
+	if lt == nil {
+		return nil, fmt.Errorf("could not get table from endpoints function")
+	}
+	endpoints := make([]*endpoint.Endpoint, 0)
+	for i := 1; i <= lt.MaxN(); i++ {
+		var endpoint *endpoint.Endpoint
+		ltEndpoint, ok := lt.RawGetInt(i).(*lua.LTable)
+		if !ok {
+			return nil, fmt.Errorf("could not convert element %d to table", i)
+		}
+		err := gluamapper.Map(ltEndpoint, &endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("error mapping table to endpoint: %w", err)
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+	return endpoints, nil
+}

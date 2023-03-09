@@ -6,7 +6,6 @@ import (
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
-	luar "layeh.com/gopher-luar"
 
 	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/config/luazap"
@@ -14,7 +13,9 @@ import (
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"
+	custom_provider "github.com/sapslaj/zonepop/provider/custom"
 	"github.com/sapslaj/zonepop/source"
+	custom_source "github.com/sapslaj/zonepop/source/custom"
 	"github.com/sapslaj/zonepop/source/vyos"
 )
 
@@ -120,6 +121,11 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 		sourceLogger = sourceLogger.With("kind", kind)
 		sourceLogger.Infof("config: source %s is kind %s", sourceName, kind)
 		switch kind {
+		case "custom":
+			endpointFunc, ok := sourceConfig.RawGetString("endpoints").(*lua.LFunction)
+			if ok {
+				source, err = custom_source.NewCustomLuaSource(c.state, endpointFunc)
+			}
 		case "vyos_ssh":
 			var vyosConfig vyos.VyOSSSHSourceConfig
 			err = gluamapper.Map(sourceConfig, &vyosConfig)
@@ -178,6 +184,11 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 				forwardFilterFunc,
 				reverseFilterFunc,
 			)
+		case "custom":
+			updateEndpointsFunc, ok := providerConfig.RawGetString("update_endpoints").(*lua.LFunction)
+			if ok {
+				provider, err = custom_provider.NewCustomLuaProvider(c.state, updateEndpointsFunc)
+			}
 		}
 
 		if err != nil {
@@ -192,17 +203,6 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 	return providers, nil
 }
 
-func (c *luaConfig) endpointToLTable(e *endpoint.Endpoint) *lua.LTable {
-	lt := c.state.NewTable()
-	lt.RawSetString("hostname", luar.New(c.state, e.Hostname))
-	lt.RawSetString("ipv4s", luar.New(c.state, e.IPv4s))
-	lt.RawSetString("ipv6s", luar.New(c.state, e.IPv6s))
-	lt.RawSetString("record_ttl", luar.New(c.state, e.RecordTTL))
-	lt.RawSetString("source_properties", luar.New(c.state, e.SourceProperties))
-	lt.RawSetString("provider_properties", luar.New(c.state, e.ProviderProperties))
-	return lt
-}
-
 func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) configtypes.EndpointFilterFunc {
 	luaFunc, ok := table.RawGetString(key).(*lua.LFunction)
 	if !ok {
@@ -213,7 +213,7 @@ func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) 
 		co, _ := c.state.NewThread()
 		result := true
 		for {
-			st, err, values := c.state.Resume(co, luaFunc, c.endpointToLTable(e))
+			st, err, values := c.state.Resume(co, luaFunc, e.ToLuaTable(c.state))
 
 			if st == lua.ResumeError {
 				c.logger.Sugar().Panicf("endpoint filter lua.ResumeError: %v", err)

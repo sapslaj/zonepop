@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/source"
 )
@@ -178,10 +180,100 @@ func TestLuaConfig_Basic(t *testing.T) {
 				}
 				assertType(t, sources[0], "*vyos.vyosSSHSource")
 				providers := configProviders(t, config)
-				if len(providers) != 1 {
-					t.Errorf("len(providers) != 1 (got %d)", len(providers))
-				}
+				assert.Len(t, providers, 1)
 				assertType(t, providers[0], "*aws.route53Provider")
+			})
+		})
+	}
+}
+
+func TestLuaConfig_Providers(t *testing.T) {
+	luaConfig := map[string]struct {
+		providerType string
+		contents     string
+	}{
+		"custom": {
+			providerType: "*custom.customLuaProvider",
+			contents: `
+				return {
+					providers = {
+						custom = {
+							"custom",
+							config = {
+								update_endpoints = function(endpoints) end,
+							}
+						}
+					}
+				}
+			`,
+		},
+		"aws_route53": {
+			providerType: "*aws.route53Provider",
+			contents: `
+				return {
+					providers = {
+						route53 = {
+							"aws_route53",
+							config = {},
+						}
+					}
+				}
+			`,
+		},
+	}
+	for n, tc := range luaConfig {
+		t.Run(n, func(t *testing.T) {
+			withTestConfigFile(t, tc.contents, func(t *testing.T, configFileName string) {
+				config := newTestLuaConfig(t, configFileName)
+				providers := configProviders(t, config)
+				assert.Len(t, providers, 1)
+				assertType(t, providers[0], tc.providerType)
+			})
+		})
+	}
+}
+
+func TestLuaConfig_Sources(t *testing.T) {
+	luaConfig := map[string]struct {
+		sourceType string
+		contents   string
+	}{
+		"custom": {
+			sourceType: "*custom.customLuaSource",
+			contents: `
+				return {
+					sources = {
+						custom = {
+							"custom",
+							config = {
+								endpoints = function() return {} end,
+							}
+						}
+					}
+				}
+			`,
+		},
+		"vyos_ssh": {
+			sourceType: "*vyos.vyosSSHSource",
+			contents: `
+				return {
+					sources = {
+						vyos = {
+							"vyos_ssh",
+							config = {},
+						}
+					}
+				}
+			`,
+		},
+	}
+	for n, tc := range luaConfig {
+		t.Run(n, func(t *testing.T) {
+			withTestConfigFile(t, tc.contents, func(t *testing.T, configFileName string) {
+				config := newTestLuaConfig(t, configFileName)
+				sources := configSources(t, config)
+				assert.Len(t, sources, 1)
+				assertType(t, sources[0], tc.sourceType)
 			})
 		})
 	}
