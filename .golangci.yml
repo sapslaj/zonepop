@@ -30,7 +30,6 @@ linters:
     - stylecheck # TODO
     - tagliatelle # disabled because we explicitly do not want this
     - testpackage # TODO
-    - thelper # TODO
     - unparam # TODO
     - varnamelen # TODO
     - wastedassign # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
@@ -64,3 +63,6 @@ issues:
       text: ValidNUDs is a global variable
     - path: config/configtypes/configtypes\.go
       text: DryRunContextKey is a global variable
+    - path: config/config_test\.go
+      linters:
+        - thelper # false positive on withTestConfigFile callback

@@ -10,6 +10,7 @@ import (
 )
 
 func testConfigFile(t *testing.T, contents string) (configFileName string) {
+	t.Helper()
 	file, err := os.CreateTemp("", "zonepop.*.config.lua")
 	if err != nil {
 		t.Fatalf("testConfigFile encountered error when creating temp file: %v", err)
@@ -26,6 +27,7 @@ func testConfigFile(t *testing.T, contents string) (configFileName string) {
 }
 
 func withTestConfigFile(t *testing.T, contents string, test func(t *testing.T, configFileName string)) {
+	t.Helper()
 	f := testConfigFile(t, contents)
 	test(t, f)
 	if err := os.Remove(f); err != nil {
@@ -34,6 +36,7 @@ func withTestConfigFile(t *testing.T, contents string, test func(t *testing.T, c
 }
 
 func newTestLuaConfig(t *testing.T, configFileName string) Config {
+	t.Helper()
 	config, err := NewLuaConfig(configFileName)
 	if err != nil {
 		t.Fatalf("NewLuaConfig returned error: %v", err)
@@ -46,6 +49,7 @@ func newTestLuaConfig(t *testing.T, configFileName string) Config {
 }
 
 func configProviders(t *testing.T, config Config) []provider.Provider {
+	t.Helper()
 	p, err := config.Providers()
 	if err != nil {
 		t.Fatalf("config.Providers returned error: %v", err)
@@ -54,6 +58,7 @@ func configProviders(t *testing.T, config Config) []provider.Provider {
 }
 
 func configSources(t *testing.T, config Config) []source.Source {
+	t.Helper()
 	s, err := config.Sources()
 	if err != nil {
 		t.Fatalf("config.Sources returned error: %v", err)
@@ -62,6 +67,7 @@ func configSources(t *testing.T, config Config) []source.Source {
 }
 
 func assertType(t *testing.T, v any, want string) {
+	t.Helper()
 	got := reflect.TypeOf(v).String()
 	if got != want {
 		t.Errorf("incorrect type; got: %s, want: %s", got, want)
