@@ -89,7 +89,7 @@ func (c *Controller) ShouldRunOnce(now time.Time) bool {
 	return true
 }
 
-// Run runs RunOnce in a loop with a delay until context is canceled
+// Run runs RunOnce in a loop with a delay until context is canceled.
 func (c *Controller) Run(ctx context.Context) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
