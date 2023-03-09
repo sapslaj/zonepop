@@ -1,6 +1,6 @@
 package utils
 
-// Reversed returns a reversed copy of a slice
+// Reversed returns a reversed copy of a slice.
 func Reversed[V any](source []V) []V {
 	result := make([]V, len(source))
 	for i, j := 0, len(source)-1; i < len(source); i, j = i+1, j-1 {
