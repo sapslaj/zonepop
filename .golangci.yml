@@ -16,7 +16,6 @@ linters:
   disable:
     - exhaustruct # TODO
     - gci # TODO
-    - gochecknoglobals # TODO
     - gocritic # TODO
     - goerr113 # TODO
     - gofumpt # TODO
@@ -55,3 +54,13 @@ issues:
       linters:
         - funlen
         - dupl
+    - path: main\.go
+      linters:
+        # flags are known globals
+        - gochecknoglobals
+    - path: config/config\.go
+      text: defaultEndpointFilterFunc is a global variable
+    - path: source/vyos/neighbor\.go
+      text: ValidNUDs is a global variable
+    - path: config/configtypes/configtypes\.go
+      text: DryRunContextKey is a global variable
