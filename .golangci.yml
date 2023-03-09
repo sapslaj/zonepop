@@ -7,6 +7,8 @@ linters:
     - staticcheck
     - typecheck
     - unused
+  disabled:
+    - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
   presets:
     # - bugs
     # - comment
@@ -14,9 +16,9 @@ linters:
     # - error
     # - format
     # - metalinter
-    # - module
-    # - performance
-    # - sql
+    - module
+    - performance
+    - sql
     # - style
     # - test
     # - unused
