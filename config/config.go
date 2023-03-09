@@ -9,6 +9,7 @@ import (
 	luar "layeh.com/gopher-luar"
 
 	"github.com/sapslaj/zonepop/config/configtypes"
+	"github.com/sapslaj/zonepop/config/luazap"
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
@@ -46,6 +47,10 @@ func (c *luaConfig) Parse() error {
 		c.state.Close()
 	}
 	c.state = lua.NewState()
+	// Disable zap's built-in caller func since luazap provides its own
+	logloader := luazap.NewLoader(c.logger.WithOptions(zap.WithCaller(false)))
+	c.state.PreloadModule("log", logloader)
+	c.state.PreloadModule("zap", logloader)
 	err := c.state.DoFile(c.configFileName)
 	if err != nil {
 		newErr := fmt.Errorf("config: failed to execute configuration file %s: %w", c.configFileName, err)
