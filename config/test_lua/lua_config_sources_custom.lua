@@ -3,7 +3,7 @@ return {
     custom = {
       "custom",
       config = {
-        endpoints = function() return {} end,
+        endpoints = function(config) return {} end,
       }
     }
   }

@@ -1,4 +1,4 @@
-return function()
+return function(config)
   return {
     {
       hostname = "test-host",

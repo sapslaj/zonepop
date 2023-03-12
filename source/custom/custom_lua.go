@@ -30,9 +30,10 @@ func NewCustomLuaSource(state *lua.LState, endpointsFunc *lua.LFunction) (source
 
 func (s *customLuaSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
 	co, _ := s.state.NewThread()
-	var lt *lua.LTable
+	configLt := s.state.NewTable()
+	var endpointsLt *lua.LTable
 	for {
-		st, err, values := s.state.Resume(co, s.endpointsFunc)
+		st, err, values := s.state.Resume(co, s.endpointsFunc, configLt)
 
 		if st == lua.ResumeError {
 			return nil, fmt.Errorf("lua.ResumeError: %w", err)
@@ -40,7 +41,7 @@ func (s *customLuaSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, 
 
 		for _, lv := range values {
 			if r, ok := lv.(*lua.LTable); ok {
-				lt = r
+				endpointsLt = r
 			}
 		}
 
@@ -48,13 +49,13 @@ func (s *customLuaSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, 
 			break
 		}
 	}
-	if lt == nil {
+	if endpointsLt == nil {
 		return nil, fmt.Errorf("could not get table from endpoints function")
 	}
 	endpoints := make([]*endpoint.Endpoint, 0)
-	for i := 1; i <= lt.MaxN(); i++ {
+	for i := 1; i <= endpointsLt.MaxN(); i++ {
 		var endpoint *endpoint.Endpoint
-		ltEndpoint, ok := lt.RawGetInt(i).(*lua.LTable)
+		ltEndpoint, ok := endpointsLt.RawGetInt(i).(*lua.LTable)
 		if !ok {
 			return nil, fmt.Errorf("could not convert element %d to table", i)
 		}
