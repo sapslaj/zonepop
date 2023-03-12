@@ -3,7 +3,7 @@ return {
     custom = {
       "custom",
       config = {
-        update_endpoints = function(endpoints) end,
+        update_endpoints = function(config, endpoints) end,
       }
     }
   }

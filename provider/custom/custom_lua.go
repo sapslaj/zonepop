@@ -29,12 +29,13 @@ func NewCustomLuaProvider(state *lua.LState, updateEndpointsFunc *lua.LFunction)
 
 func (p *customLuaProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	co, _ := p.state.NewThread()
-	lt := p.state.NewTable()
+	endpointsLt := p.state.NewTable()
 	for _, e := range endpoints {
-		lt.Append(e.ToLuaTable(p.state))
+		endpointsLt.Append(e.ToLuaTable(p.state))
 	}
+	configLt := p.state.NewTable()
 	for {
-		st, err, _ := p.state.Resume(co, p.updateEndpointsFunc, lt)
+		st, err, _ := p.state.Resume(co, p.updateEndpointsFunc, configLt, endpointsLt)
 
 		if st == lua.ResumeError {
 			return fmt.Errorf("lua.ResumeError: %w", err)
