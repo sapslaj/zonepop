@@ -8,24 +8,48 @@ import (
 )
 
 func TestLuaTableConversions(t *testing.T) {
-	expected := &Endpoint{
-		Hostname:  "test-host",
-		IPv4s:     []string{"192.0.2.1"},
-		IPv6s:     []string{},
-		RecordTTL: 60,
-		SourceProperties: map[string]any{
-			"dummy": "prop",
+	tests := map[string]struct {
+		endpoint *Endpoint
+	}{
+		"only ipv4 and source props": {
+			endpoint: &Endpoint{
+				Hostname:  "test-host",
+				IPv4s:     []string{"192.0.2.1"},
+				IPv6s:     []string{},
+				RecordTTL: 60,
+				SourceProperties: map[string]any{
+					"dummy": "prop",
+				},
+				ProviderProperties: map[string]any{},
+			},
 		},
-		ProviderProperties: map[string]any{},
+		"all ips and props": {
+			endpoint: &Endpoint{
+				Hostname:  "test-host",
+				IPv4s:     []string{"192.0.2.1"},
+				IPv6s:     []string{"2001:db8::1"},
+				RecordTTL: 60,
+				SourceProperties: map[string]any{
+					"source": "prop",
+				},
+				ProviderProperties: map[string]any{
+					"provider": "prop",
+				},
+			},
+		},
 	}
 
-	state := lua.NewState()
-	lt := expected.ToLuaTable(state)
+	for desc, tc := range tests {
+		t.Run(desc, func(t *testing.T) {
+			state := lua.NewState()
+			lt := tc.endpoint.ToLuaTable(state)
 
-	converted := FromLuaTable(state, lt)
+			converted := FromLuaTable(state, lt)
 
-	diff := cmp.Diff(expected, converted)
-	if diff != "" {
-		t.Fatalf("diff:\n%s", diff)
+			diff := cmp.Diff(tc.endpoint, converted)
+			if diff != "" {
+				t.Fatalf("diff:\n%s", diff)
+			}
+		})
 	}
 }

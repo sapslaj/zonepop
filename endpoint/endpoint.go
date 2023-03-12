@@ -1,6 +1,7 @@
 package endpoint
 
 import (
+	"github.com/sapslaj/zonepop/pkg/luautils"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"
@@ -33,31 +34,9 @@ func FromLuaTable(state *lua.LState, lt *lua.LTable) *Endpoint {
 		return nil
 	}
 	// don't want CamelCase keys in properties, so have to jump through a few hoops
-	e.SourceProperties = LuaTableToMap[string, any](state, lt.RawGetString("source_properties"))
-	e.ProviderProperties = LuaTableToMap[string, any](state, lt.RawGetString("provider_properties"))
+	e.SourceProperties = luautils.LuaTableToMap[string, any](lt.RawGetString("source_properties"))
+	e.ProviderProperties = luautils.LuaTableToMap[string, any](lt.RawGetString("provider_properties"))
 	return e
-}
-
-func LuaTableToMap[K comparable, V any](state *lua.LState, lv lua.LValue) map[K]V {
-	result := make(map[K]V)
-	raw, ok := gluamapper.ToGoValue(lv, gluamapper.Option{
-		NameFunc: gluamapper.Id,
-	}).(map[any]any)
-	if !ok {
-		return nil
-	}
-	for k, v := range raw {
-		key, ok := k.(K)
-		if !ok {
-			continue
-		}
-		value, ok := v.(V)
-		if !ok {
-			continue
-		}
-		result[key] = value
-	}
-	return result
 }
 
 func (e *Endpoint) ToLuaTable(state *lua.LState) *lua.LTable {
