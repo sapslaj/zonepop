@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"reflect"
 	"testing"
 
@@ -10,32 +9,6 @@ import (
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/source"
 )
-
-func testConfigFile(t *testing.T, contents string) (configFileName string) {
-	t.Helper()
-	file, err := os.CreateTemp("", "zonepop.*.config.lua")
-	if err != nil {
-		t.Fatalf("testConfigFile encountered error when creating temp file: %v", err)
-	}
-	_, err = file.Write([]byte(contents))
-	if err != nil {
-		t.Fatalf("testConfigFile encountered error when writing temp file: %v", err)
-	}
-	err = file.Close()
-	if err != nil {
-		t.Fatalf("testConfigFile encountered error when closing temp file: %v", err)
-	}
-	return file.Name()
-}
-
-func withTestConfigFile(t *testing.T, contents string, test func(t *testing.T, configFileName string)) {
-	t.Helper()
-	f := testConfigFile(t, contents)
-	test(t, f)
-	if err := os.Remove(f); err != nil {
-		t.Fatalf("withTestConfigFile encountered error when removing temp file: %v", err)
-	}
-}
 
 func newTestLuaConfig(t *testing.T, configFileName string) Config {
 	t.Helper()
@@ -78,203 +51,70 @@ func assertType(t *testing.T, v any, want string) {
 
 func TestLuaConfig_Basic(t *testing.T) {
 	configFlavors := map[string]string{
-		"basic": `
-			return {
-				sources = {
-					vyos = {
-						"vyos_ssh",
-						config = {
-							host = os.getenv("VYOS_HOST"),
-							username = os.getenv("VYOS_USERNAME"),
-							password = os.getenv("VYOS_PASSWORD"),
-						},
-					},
-				},
-				providers = {
-					route53 = {
-						"aws_route53",
-						config = {
-							record_suffix = ".example.com",
-							forward_zone_id = "Z2FDTNDATAQYW2",
-						},
-					},
-				},
-			}
-		`,
-		"with global vars": `
-			vyos_host = "router.example.com"
-			return {
-				sources = {
-					vyos = {
-						"vyos_ssh",
-						config = {
-							host = vyos_host,
-						},
-					},
-				},
-				providers = {
-					route53 = {
-						"aws_route53",
-						config = {
-							record_suffix = ".example.com",
-							forward_zone_id = "Z2FDTNDATAQYW2",
-						},
-					},
-				},
-			}
-		`,
-		"with local vars": `
-			local vyos_host = "router.example.com"
-			return {
-				sources = {
-					vyos = {
-						"vyos_ssh",
-						config = {
-							host = vyos_host,
-						},
-					},
-				},
-				providers = {
-					route53 = {
-						"aws_route53",
-						config = {
-							record_suffix = ".example.com",
-							forward_zone_id = "Z2FDTNDATAQYW2",
-						},
-					},
-				},
-			}
-		`,
-		"with function calls": `
-			function get_vyos_host ()
-				return os.getenv("VYOS_HOST")
-			end
-			return {
-				sources = {
-					vyos = {
-						"vyos_ssh",
-						config = {
-							host = get_vyos_host(),
-						},
-					},
-				},
-				providers = {
-					route53 = {
-						"aws_route53",
-						config = {
-							record_suffix = ".example.com",
-							forward_zone_id = "Z2FDTNDATAQYW2",
-						},
-					},
-				},
-			}
-		`,
+		"basic":               "test_lua/lua_config_basic_basic.lua",
+		"with global vars":    "test_lua/lua_config_basic_with_global_vars.lua",
+		"with local vars":     "test_lua/lua_config_basic_with_local_vars.lua",
+		"with function calls": "test_lua/lua_config_basic_with_function_calls.lua",
 	}
-	for flavorName, configContents := range configFlavors {
+	for flavorName, configFileName := range configFlavors {
 		t.Run(flavorName, func(t *testing.T) {
-			withTestConfigFile(t, configContents, func(t *testing.T, configFileName string) {
-				config := newTestLuaConfig(t, configFileName)
-				sources := configSources(t, config)
-				if len(sources) != 1 {
-					t.Errorf("len(sources) != 1 (got %d)", len(sources))
-				}
-				assertType(t, sources[0], "*vyos.vyosSSHSource")
-				providers := configProviders(t, config)
-				assert.Len(t, providers, 1)
-				assertType(t, providers[0], "*aws.route53Provider")
-			})
+			config := newTestLuaConfig(t, configFileName)
+			sources := configSources(t, config)
+			if len(sources) != 1 {
+				t.Errorf("len(sources) != 1 (got %d)", len(sources))
+			}
+			assertType(t, sources[0], "*vyos.vyosSSHSource")
+			providers := configProviders(t, config)
+			assert.Len(t, providers, 1)
+			assertType(t, providers[0], "*aws.route53Provider")
 		})
 	}
 }
 
 func TestLuaConfig_Providers(t *testing.T) {
 	luaConfig := map[string]struct {
-		providerType string
-		contents     string
+		providerType   string
+		configFileName string
 	}{
 		"custom": {
-			providerType: "*custom.customLuaProvider",
-			contents: `
-				return {
-					providers = {
-						custom = {
-							"custom",
-							config = {
-								update_endpoints = function(endpoints) end,
-							}
-						}
-					}
-				}
-			`,
+			providerType:   "*custom.customLuaProvider",
+			configFileName: "test_lua/lua_config_providers_custom.lua",
 		},
 		"aws_route53": {
-			providerType: "*aws.route53Provider",
-			contents: `
-				return {
-					providers = {
-						route53 = {
-							"aws_route53",
-							config = {},
-						}
-					}
-				}
-			`,
+			providerType:   "*aws.route53Provider",
+			configFileName: "test_lua/lua_config_providers_aws_route53.lua",
 		},
 	}
 	for n, tc := range luaConfig {
 		t.Run(n, func(t *testing.T) {
-			withTestConfigFile(t, tc.contents, func(t *testing.T, configFileName string) {
-				config := newTestLuaConfig(t, configFileName)
-				providers := configProviders(t, config)
-				assert.Len(t, providers, 1)
-				assertType(t, providers[0], tc.providerType)
-			})
+			config := newTestLuaConfig(t, tc.configFileName)
+			providers := configProviders(t, config)
+			assert.Len(t, providers, 1)
+			assertType(t, providers[0], tc.providerType)
 		})
 	}
 }
 
 func TestLuaConfig_Sources(t *testing.T) {
 	luaConfig := map[string]struct {
-		sourceType string
-		contents   string
+		sourceType     string
+		configFileName string
 	}{
 		"custom": {
-			sourceType: "*custom.customLuaSource",
-			contents: `
-				return {
-					sources = {
-						custom = {
-							"custom",
-							config = {
-								endpoints = function() return {} end,
-							}
-						}
-					}
-				}
-			`,
+			sourceType:     "*custom.customLuaSource",
+			configFileName: "test_lua/lua_config_sources_custom.lua",
 		},
 		"vyos_ssh": {
-			sourceType: "*vyos.vyosSSHSource",
-			contents: `
-				return {
-					sources = {
-						vyos = {
-							"vyos_ssh",
-							config = {},
-						}
-					}
-				}
-			`,
+			sourceType:     "*vyos.vyosSSHSource",
+			configFileName: "test_lua/lua_config_sources_vyos_ssh.lua",
 		},
 	}
 	for n, tc := range luaConfig {
 		t.Run(n, func(t *testing.T) {
-			withTestConfigFile(t, tc.contents, func(t *testing.T, configFileName string) {
-				config := newTestLuaConfig(t, configFileName)
-				sources := configSources(t, config)
-				assert.Len(t, sources, 1)
-				assertType(t, sources[0], tc.sourceType)
-			})
+			config := newTestLuaConfig(t, tc.configFileName)
+			sources := configSources(t, config)
+			assert.Len(t, sources, 1)
+			assertType(t, sources[0], tc.sourceType)
 		})
 	}
 }
