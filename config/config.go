@@ -166,10 +166,10 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 
 		providerLogger = providerLogger.With("kind", kind)
 		providerLogger.Infof("config: provider %s is kind %s", providerName, kind)
+		forwardFilterFunc := c.createEndpointFilterFunction(providerConfig, "forward_lookup_filter")
+		reverseFilterFunc := c.createEndpointFilterFunction(providerConfig, "reverse_lookup_filter")
 		switch kind {
 		case "aws_route53":
-			forwardFilterFunc := c.createEndpointFilterFunction(providerConfig, "forward_lookup_filter")
-			reverseFilterFunc := c.createEndpointFilterFunction(providerConfig, "reverse_lookup_filter")
 			var r53Config aws.Route53ProviderConfig
 			err = gluamapper.Map(providerConfig, &r53Config)
 			if err != nil {
@@ -185,7 +185,12 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 		case "custom":
 			updateEndpointsFunc, ok := providerConfig.RawGetString("update_endpoints").(*lua.LFunction)
 			if ok {
-				provider, err = custom_provider.NewCustomLuaProvider(c.state, updateEndpointsFunc)
+				provider, err = custom_provider.NewCustomLuaProvider(
+					c.state,
+					updateEndpointsFunc,
+					forwardFilterFunc,
+					reverseFilterFunc,
+				)
 			}
 		}
 

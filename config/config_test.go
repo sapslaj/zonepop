@@ -1,11 +1,13 @@
 package config
 
 import (
+	"context"
 	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/source"
 )
@@ -115,6 +117,47 @@ func TestLuaConfig_Sources(t *testing.T) {
 			sources := configSources(t, config)
 			assert.Len(t, sources, 1)
 			assertType(t, sources[0], tc.sourceType)
+		})
+	}
+}
+
+func TestLuaConfig_LookupFilter(t *testing.T) {
+	luaConfig := map[string]struct {
+		configFileName string
+		endpoints      []*endpoint.Endpoint
+	}{
+		"basic forward": {
+			configFileName: "test_lua/lua_config_lookup_filter_basic_forward.lua",
+			endpoints: []*endpoint.Endpoint{
+				{
+					Hostname: "host-1",
+				},
+				{
+					Hostname: "host-2",
+				},
+			},
+		},
+		"basic reverse": {
+			configFileName: "test_lua/lua_config_lookup_filter_basic_reverse.lua",
+			endpoints: []*endpoint.Endpoint{
+				{
+					Hostname: "host-1",
+				},
+				{
+					Hostname: "host-2",
+				},
+			},
+		},
+	}
+	for n, tc := range luaConfig {
+		t.Run(n, func(t *testing.T) {
+			config := newTestLuaConfig(t, tc.configFileName)
+			providers := configProviders(t, config)
+			ctx := context.Background()
+			err := providers[0].UpdateEndpoints(ctx, tc.endpoints)
+			if err != nil {
+				t.Fatalf("UpdateEndpoints failed: %v", err)
+			}
 		})
 	}
 }

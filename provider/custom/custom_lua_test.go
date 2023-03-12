@@ -9,6 +9,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
+	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/config/luazap"
 	"github.com/sapslaj/zonepop/endpoint"
 )
@@ -25,7 +26,12 @@ func TestUpdateEndpoints(t *testing.T) {
 	}
 	updateEndpointsFunc := state.Get(-1).(*lua.LFunction)
 
-	p, err := NewCustomLuaProvider(state, updateEndpointsFunc)
+	p, err := NewCustomLuaProvider(
+		state,
+		updateEndpointsFunc,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
 	if err != nil {
 		t.Fatalf("error creating new custom Lua source: %v", err)
 	}
@@ -67,5 +73,44 @@ func TestUpdateEndpoints(t *testing.T) {
 	diff := cmp.Diff(logEntry.ContextMap(), expected)
 	if diff != "" {
 		t.Fatalf("mismatch:\n%s", diff)
+	}
+}
+
+func TestConfig(t *testing.T) {
+	state := lua.NewState()
+	defer state.Close()
+	err := state.DoFile("test_lua/test_config.lua")
+	if err != nil {
+		t.Fatalf("failed to execute Lua: %v", err)
+	}
+	forwardLookupFilterFunc := func(e *endpoint.Endpoint) bool {
+		return e.Hostname == "only-forward"
+	}
+	reverseLookupFilterFunc := func(e *endpoint.Endpoint) bool {
+		return e.Hostname == "only-reverse"
+	}
+	updateEndpointsFunc := state.Get(-1).(*lua.LFunction)
+	p, err := NewCustomLuaProvider(
+		state,
+		updateEndpointsFunc,
+		forwardLookupFilterFunc,
+		reverseLookupFilterFunc,
+	)
+	if err != nil {
+		t.Fatalf("error creating new custom Lua source: %v", err)
+	}
+
+	ctx := context.Background()
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname: "only-forward",
+		},
+		{
+			Hostname: "only-reverse",
+		},
+	}
+	err = p.UpdateEndpoints(ctx, endpoints)
+	if err != nil {
+		t.Fatalf("error updating endpoints: %v", err)
 	}
 }
