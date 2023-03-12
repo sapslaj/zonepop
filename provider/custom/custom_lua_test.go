@@ -19,14 +19,7 @@ func TestUpdateEndpoints(t *testing.T) {
 	core, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(core)
 	state.PreloadModule("zap", luazap.NewLoader(logger, luazap.WithCaller(false)))
-	err := state.DoString(`
-		local zap = require("zap")
-		return function(endpoints)
-			for _, endpoint in ipairs(endpoints) do
-				zap.info("new endpoint", endpoint)
-			end
-		end
-	`)
+	err := state.DoFile("test_lua/test_update_endpoints.lua")
 	if err != nil {
 		t.Fatalf("failed to execute Lua: %v", err)
 	}
