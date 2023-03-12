@@ -12,3 +12,5 @@ func (k *contextKey) String() string { return "provider context value " + k.name
 var DryRunContextKey = &contextKey{"dry-run"}
 
 type EndpointFilterFunc func(*endpoint.Endpoint) bool
+
+var DefaultEndpointFilterFunc EndpointFilterFunc = func(_ *endpoint.Endpoint) bool { return true }

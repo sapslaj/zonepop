@@ -50,19 +50,16 @@ issues:
       text: Use of ssh InsecureIgnoreHostKey should be audited
     - path: _test\.go
       linters:
-        - funlen
         - dupl
         - forcetypeassert
+        - funlen
     - path: main\.go
       linters:
         # flags are known globals
         - gochecknoglobals
-    - path: config/config\.go
-      text: defaultEndpointFilterFunc is a global variable
+    - path: config/configtypes/configtypes\.go
+      linters:
+        # configtypes contains known acceptable globals
+        - gochecknoglobals
     - path: source/vyos/neighbor\.go
       text: ValidNUDs is a global variable
-    - path: config/configtypes/configtypes\.go
-      text: DryRunContextKey is a global variable
-    - path: config/config_test\.go
-      linters:
-        - thelper # false positive on withTestConfigFile callback

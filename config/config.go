@@ -19,8 +19,6 @@ import (
 	"github.com/sapslaj/zonepop/source/vyos"
 )
 
-var defaultEndpointFilterFunc configtypes.EndpointFilterFunc = func(_ *endpoint.Endpoint) bool { return true }
-
 type Config interface {
 	Parse() error
 	Sources() ([]source.Source, error)
@@ -207,7 +205,7 @@ func (c *luaConfig) createEndpointFilterFunction(table *lua.LTable, key string) 
 	luaFunc, ok := table.RawGetString(key).(*lua.LFunction)
 	if !ok {
 		c.logger.Sugar().Infof("no %s endpoint filter function defined", key)
-		return defaultEndpointFilterFunc
+		return configtypes.DefaultEndpointFilterFunc
 	}
 	return func(e *endpoint.Endpoint) bool {
 		co, _ := c.state.NewThread()
