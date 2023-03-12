@@ -13,20 +13,7 @@ import (
 func TestEndpoints(t *testing.T) {
 	state := lua.NewState()
 	defer state.Close()
-	err := state.DoString(`
-		return function()
-			return {
-				{
-					hostname = "test-host",
-					ipv4s = {"192.0.2.1"},
-					ipv6s = {},
-					record_ttl = 60,
-					source_properties = nil,
-					provider_properties = nil,
-				},
-			}
-		end
-	`)
+	err := state.DoFile("test_lua/test_endpoints.lua")
 	if err != nil {
 		t.Fatalf("failed to execute Lua: %v", err)
 	}
