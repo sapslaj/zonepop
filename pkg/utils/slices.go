@@ -65,3 +65,25 @@ func Map[A any, B any](f func(A) B, source []A) []B {
 	}
 	return result
 }
+
+// All takes a []bool and returns true if all of the values are true, else
+// false.
+func All(a []bool) bool {
+	for _, v := range a {
+		if !v {
+			return false
+		}
+	}
+	return true
+}
+
+// Any takes a []bool and returns true if any of the values are true. If none
+// are true, returns false.
+func Any(a []bool) bool {
+	for _, v := range a {
+		if v {
+			return true
+		}
+	}
+	return false
+}

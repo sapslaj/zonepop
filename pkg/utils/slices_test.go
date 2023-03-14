@@ -148,3 +148,61 @@ func TestMap(t *testing.T) {
 		})
 	}
 }
+
+func TestAll(t *testing.T) {
+	tests := map[string]struct {
+		input    []bool
+		expected bool
+	}{
+		"returns true when it all values are true": {
+			input:    []bool{true, true, true},
+			expected: true,
+		},
+		"returns false when all values are false": {
+			input:    []bool{false, false, false},
+			expected: false,
+		},
+		"returns false if one value is false": {
+			input:    []bool{true, false, true},
+			expected: false,
+		},
+	}
+
+	for desc, tc := range tests {
+		t.Run(desc, func(t *testing.T) {
+			got := All(tc.input)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Fatalf("%s: mismatch:\n%s", desc, diff)
+			}
+		})
+	}
+}
+
+func TestAny(t *testing.T) {
+	tests := map[string]struct {
+		input    []bool
+		expected bool
+	}{
+		"returns true when it all values are true": {
+			input:    []bool{true, true, true},
+			expected: true,
+		},
+		"returns false when all values are false": {
+			input:    []bool{false, false, false},
+			expected: false,
+		},
+		"returns true if one value is false": {
+			input:    []bool{true, false, true},
+			expected: true,
+		},
+	}
+
+	for desc, tc := range tests {
+		t.Run(desc, func(t *testing.T) {
+			got := Any(tc.input)
+			if diff := cmp.Diff(tc.expected, got); diff != "" {
+				t.Fatalf("%s: mismatch:\n%s", desc, diff)
+			}
+		})
+	}
+}
