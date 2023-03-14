@@ -2,6 +2,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 
 	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/endpoint"
+	"github.com/sapslaj/zonepop/pkg/utils"
 )
 
 type mockRoute53Client struct {
@@ -80,7 +82,7 @@ func (m *mockRoute53Client) GetHostedZone(
 				HostedZone: &types.HostedZone{
 					CallerReference:        aws.String(""),
 					Id:                     aws.String("ex-ipv4-reverse"),
-					Name:                   aws.String("8.b.d.0.1.0.0.2.ip6.arpa."),
+					Name:                   aws.String("0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa."),
 					ResourceRecordSetCount: aws.Int64(69),
 					Config: &types.HostedZoneConfig{
 						Comment:     aws.String(""),
@@ -272,7 +274,10 @@ func TestUpdateEndpoints_ForwardAndReverse(t *testing.T) {
 				assert.Len(t, changes, 1)
 				assert.Equal(t, "test-host.example.com", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
 				record := aws.ToString(change.ResourceRecordSet.Name)
-				if record != "1.2.0.192.in-addr.arpa." && record != "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa." {
+				if utils.All([]bool{
+					record != "1.2.0.192.in-addr.arpa.",
+					record != "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.",
+				}) {
 					t.Errorf("Unexpected ResourceRecordSet Name for PTR: %q", record)
 				}
 			default:
@@ -280,4 +285,300 @@ func TestUpdateEndpoints_ForwardAndReverse(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestUpdateEndpoints_Filtering(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	forwardLookupFilterFunc := func(e *endpoint.Endpoint) bool {
+		return e.Hostname == "only-forward"
+	}
+	reverseLookupFilterFunc := func(e *endpoint.Endpoint) bool {
+		return e.Hostname == "only-reverse"
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		forwardLookupFilterFunc,
+		reverseLookupFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "only-forward",
+			IPv4s:              []string{"192.0.2.1"},
+			IPv6s:              []string{"2001:db8::1"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+		{
+			Hostname:           "only-reverse",
+			IPv4s:              []string{"192.0.2.2"},
+			IPv6s:              []string{"2001:db8::2"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		3,
+		"mockRoute53Client.ChangeResourceRecordSets was called an incorrect number of times",
+	)
+	for _, call := range mockClient.ChangeResourceRecordSetsCalls {
+		changes := call.Input.ChangeBatch.Changes
+		for _, change := range changes {
+			assert.Equal(t, types.ChangeActionUpsert, change.Action)
+			assert.Equal(t, int64(69), aws.ToInt64(change.ResourceRecordSet.TTL))
+			assert.Len(t, change.ResourceRecordSet.ResourceRecords, 1)
+			switch change.ResourceRecordSet.Type {
+			case types.RRTypeA:
+				fallthrough
+			case types.RRTypeAaaa:
+				assert.Len(t, changes, 2)
+				assert.Equal(t, "only-forward.example.com", aws.ToString(change.ResourceRecordSet.Name))
+			case types.RRTypePtr:
+				assert.Len(t, changes, 1)
+				assert.Equal(t, "only-reverse.example.com", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+			default:
+				t.Errorf("Unexpected ResourceRecordSet Type: expected A or AAAA, got %v", change.ResourceRecordSet.Type)
+			}
+		}
+	}
+}
+
+func TestUpdateEndpoints_NoChanges(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "test-host",
+			IPv4s:              []string{},
+			IPv6s:              []string{},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		0,
+		"mockRoute53Client.ChangeResourceRecordSets was called when it should not have been",
+	)
+}
+
+func TestUpdateEndpoints_ErrorUpdatingZone(t *testing.T) {
+	expectedErr := errors.New("injected error")
+	mockClient := &mockRoute53Client{
+		GetHostedZoneError: expectedErr,
+	}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "test-host",
+			IPv4s:              []string{"192.0.2.1"},
+			IPv6s:              []string{"2001:db8::1"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	assert.ErrorIs(t, err, expectedErr)
+
+	assert.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		0,
+		"mockRoute53Client.ChangeResourceRecordSets was called when it should not have been",
+	)
+}
+
+func TestUpdateEndpoints_NoHostname(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "",
+			IPv4s:              []string{"192.0.2.1"},
+			IPv6s:              []string{"2001:db8::1"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		2,
+		"mockRoute53Client.ChangeResourceRecordSets was called an incorrect number of times",
+	)
+
+	for _, call := range mockClient.ChangeResourceRecordSetsCalls {
+		changes := call.Input.ChangeBatch.Changes
+		for _, change := range changes {
+			assert.Equal(t, types.ChangeActionUpsert, change.Action)
+			assert.Equal(t, int64(69), aws.ToInt64(change.ResourceRecordSet.TTL))
+			assert.Len(t, change.ResourceRecordSet.ResourceRecords, 1)
+			switch change.ResourceRecordSet.Type {
+			case types.RRTypeA:
+				assert.Len(t, changes, 2)
+				assert.Equal(t, "ip-192-0-2-1.example.com", aws.ToString(change.ResourceRecordSet.Name))
+				assert.Equal(t, "192.0.2.1", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+			case types.RRTypeAaaa:
+				assert.Len(t, changes, 2)
+				assert.Equal(t, "ip-192-0-2-1.example.com", aws.ToString(change.ResourceRecordSet.Name))
+				assert.Equal(t, "2001:db8::1", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+			case types.RRTypePtr:
+				assert.Len(t, changes, 1)
+				assert.Equal(t, "ip-192-0-2-1.example.com", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+				record := aws.ToString(change.ResourceRecordSet.Name)
+				if utils.All([]bool{
+					record != "1.2.0.192.in-addr.arpa.",
+					record != "1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.",
+				}) {
+					t.Errorf("Unexpected ResourceRecordSet Name for PTR: %q", record)
+				}
+			default:
+				t.Errorf("Unexpected ResourceRecordSet Type: expected A or AAAA, got %v", change.ResourceRecordSet.Type)
+			}
+		}
+	}
+}
+
+func TestUpdateEndpoints_NoHostnameNoIpv4(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "",
+			IPv4s:              []string{},
+			IPv6s:              []string{},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		0,
+		"mockRoute53Client.ChangeResourceRecordSets was called an incorrect number of times",
+	)
+}
+
+func TestUpdateEndpoints_NonFittingReverseZones(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:      ".example.com",
+		ForwardZoneID:     "ex-forward",
+		Ipv4ReverseZoneID: "ex-ipv4-reverse",
+		Ipv6ReverseZoneID: "ex-ipv6-reverse",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "test-host",
+			IPv4s:              []string{"198.51.100.1"},
+			IPv6s:              []string{"2001:db8:ffff:ffff::1"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		1,
+		"mockRoute53Client.ChangeResourceRecordSets was called an incorrect number of times",
+	)
 }
