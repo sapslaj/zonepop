@@ -166,6 +166,16 @@ func TestFields(t *testing.T) {
 				WithCaller(true),
 			},
 		},
+		"with fields and caller using AddCaller": {
+			do: `require("zap").info("no fields except caller", {foo="bar"})`,
+			fields: map[string]any{
+				"foo":    "bar",
+				"caller": "<string>:1",
+			},
+			opts: []Option{
+				AddCaller(),
+			},
+		},
 		"with table in fields": {
 			do: `require("zap").info("with table in fields", {foo={sub="bar",bar="baz"}})`,
 			fields: map[string]any{
@@ -176,6 +186,20 @@ func TestFields(t *testing.T) {
 			},
 			opts: []Option{
 				WithCaller(false),
+			},
+		},
+		"with bool field": {
+			do: `require("zap").info("with bool field", {foo=true})`,
+			fields: map[string]any{
+				"foo":    true,
+				"caller": "<string>:1",
+			},
+		},
+		"with number field": {
+			do: `require("zap").info("with bool field", {foo=69})`,
+			fields: map[string]any{
+				"foo":    float64(69),
+				"caller": "<string>:1",
 			},
 		},
 	}
