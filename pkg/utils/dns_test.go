@@ -17,10 +17,12 @@ func TestDNSSafeName(t *testing.T) {
 	}
 
 	for desc, tc := range tests {
-		got := DNSSafeName(tc.input)
-		if tc.expected != got {
-			t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
-		}
+		t.Run(desc, func(t *testing.T) {
+			got := DNSSafeName(tc.input)
+			if tc.expected != got {
+				t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
+			}
+		})
 	}
 }
 
@@ -48,19 +50,21 @@ func TestReverseAddr(t *testing.T) {
 		},
 	}
 	for desc, tc := range tests {
-		got, err := ReverseAddr(tc.input)
-		if tc.errMsg == "" && err != nil {
-			t.Errorf("%s: expected no error but got error %v", desc, err)
-		}
-		if tc.errMsg != "" && err == nil {
-			t.Errorf("%s: expected error %q but got nil", desc, tc.errMsg)
-		}
-		if tc.errMsg != "" && err != nil && !strings.Contains(err.Error(), tc.errMsg) {
-			t.Errorf("%s: expected error %q but got %v", desc, tc.errMsg, err)
-		}
-		if tc.expected != got {
-			t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
-		}
+		t.Run(desc, func(t *testing.T) {
+			got, err := ReverseAddr(tc.input)
+			if tc.errMsg == "" && err != nil {
+				t.Errorf("%s: expected no error but got error %v", desc, err)
+			}
+			if tc.errMsg != "" && err == nil {
+				t.Errorf("%s: expected error %q but got nil", desc, tc.errMsg)
+			}
+			if tc.errMsg != "" && err != nil && !strings.Contains(err.Error(), tc.errMsg) {
+				t.Errorf("%s: expected error %q but got %v", desc, tc.errMsg, err)
+			}
+			if tc.expected != got {
+				t.Errorf("%s: expected %q, got %q", desc, tc.expected, got)
+			}
+		})
 	}
 }
 
@@ -115,20 +119,26 @@ func TestFitsInReverseZone(t *testing.T) {
 			fits:   false,
 			errMsg: "not a valid IPv6 reverse lookup zone",
 		},
+		"fails parsing address": {
+			addr:   "invalid",
+			errMsg: "failed to parse address",
+		},
 	}
 	for desc, tc := range tests {
-		got, err := FitsInReverseZone(tc.addr, tc.zone)
-		if tc.errMsg == "" && err != nil {
-			t.Errorf("%s: expected no error but got error %v", desc, err)
-		}
-		if tc.errMsg != "" && err == nil {
-			t.Errorf("%s: expected error %q but got nil", desc, tc.errMsg)
-		}
-		if tc.errMsg != "" && err != nil && !strings.Contains(err.Error(), tc.errMsg) {
-			t.Errorf("%s: expected error %q but got %v", desc, tc.errMsg, err)
-		}
-		if tc.fits != got {
-			t.Errorf("%s: expected %v, got %v", desc, tc.fits, got)
-		}
+		t.Run(desc, func(t *testing.T) {
+			got, err := FitsInReverseZone(tc.addr, tc.zone)
+			if tc.errMsg == "" && err != nil {
+				t.Errorf("%s: expected no error but got error %v", desc, err)
+			}
+			if tc.errMsg != "" && err == nil {
+				t.Errorf("%s: expected error %q but got nil", desc, tc.errMsg)
+			}
+			if tc.errMsg != "" && err != nil && !strings.Contains(err.Error(), tc.errMsg) {
+				t.Errorf("%s: expected error %q but got %v", desc, tc.errMsg, err)
+			}
+			if tc.fits != got {
+				t.Errorf("%s: expected %v, got %v", desc, tc.fits, got)
+			}
+		})
 	}
 }
