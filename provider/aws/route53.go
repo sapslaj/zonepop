@@ -27,15 +27,30 @@ type Route53ProviderConfig struct {
 	Ipv6ReverseZoneName string
 }
 
+type Route53Client interface {
+	// Implementation of [github.com/aws/aws-sdk-go-v2/service/route53.Client.GetHostedZone]
+	GetHostedZone(
+		ctx context.Context,
+		params *route53.GetHostedZoneInput,
+		optFns ...func(*route53.Options),
+	) (*route53.GetHostedZoneOutput, error)
+	// Implementation of [github.com/aws/aws-sdk-go-v2/service/route53.Client.ChangeResourceRecordSets]
+	ChangeResourceRecordSets(
+		ctx context.Context,
+		params *route53.ChangeResourceRecordSetsInput,
+		optFns ...func(*route53.Options),
+	) (*route53.ChangeResourceRecordSetsOutput, error)
+}
+
 type route53Provider struct {
 	config              Route53ProviderConfig
 	forwardLookupFilter configtypes.EndpointFilterFunc
 	reverseLookupFilter configtypes.EndpointFilterFunc
-	client              *route53.Client
+	client              Route53Client
 	logger              *zap.Logger
 }
 
-func getRoute53ZoneName(ctx context.Context, client *route53.Client, zoneID string) (string, error) {
+func getRoute53ZoneName(ctx context.Context, client Route53Client, zoneID string) (string, error) {
 	ghzout, err := client.GetHostedZone(ctx, &route53.GetHostedZoneInput{
 		Id: aws.String(zoneID),
 	})

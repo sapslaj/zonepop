@@ -51,6 +51,7 @@ issues:
     - path: _test\.go
       linters:
         - dupl
+        - exhaustive
         - forcetypeassert
         - funlen
     - path: main\.go
