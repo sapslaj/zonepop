@@ -176,6 +176,16 @@ func TestFields(t *testing.T) {
 				AddCaller(),
 			},
 		},
+		"with fields and custom caller key": {
+			do: `require("zap").info("no fields except caller", {foo="bar"})`,
+			fields: map[string]any{
+				"foo":           "bar",
+				"luazap_caller": "<string>:1",
+			},
+			opts: []Option{
+				WithCallerKey("luazap_caller"),
+			},
+		},
 		"with table in fields": {
 			do: `require("zap").info("with table in fields", {foo={sub="bar",bar="baz"}})`,
 			fields: map[string]any{

@@ -12,6 +12,8 @@ func (f optionFunc) apply(lz *LuaZap) {
 	f(lz)
 }
 
+const DefaultCallerKey string = "caller"
+
 func WithCallerKey(key string) Option {
 	return optionFunc(func(lz *LuaZap) {
 		lz.CallerKey = key

@@ -16,8 +16,6 @@ type LuaZap struct {
 	CallerKey string
 }
 
-const DefaultCallerKey string = "caller"
-
 func NewLoader(logger *zap.Logger, opts ...Option) func(*lua.LState) int {
 	return NewLuaZap(logger, opts...).Loader
 }
@@ -135,7 +133,7 @@ func (lz *LuaZap) makeLogFunc(level string) func(L *lua.LState) int {
 		logger := lz.Logger
 		if lz.CallerKey != zapcore.OmitKey {
 			caller := strings.TrimSuffix(L.Where(-1), ":")
-			logger = lz.Logger.With(zap.String("caller", caller))
+			logger = lz.Logger.With(zap.String(lz.CallerKey, caller))
 		}
 
 		fields = append(fields, lz.TableToZapFields(lFields)...)
