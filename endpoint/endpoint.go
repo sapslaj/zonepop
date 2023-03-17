@@ -1,10 +1,11 @@
 package endpoint
 
 import (
-	"github.com/sapslaj/zonepop/pkg/luautils"
 	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"
+
+	"github.com/sapslaj/zonepop/pkg/luautils"
 )
 
 // Endpoint is a host configuration emitted from a source that contain all of

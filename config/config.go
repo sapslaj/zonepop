@@ -19,6 +19,8 @@ import (
 	"github.com/sapslaj/zonepop/source/vyos"
 )
 
+// Config is an interface for configuration providers for source and provider
+// configuration and initialization.
 type Config interface {
 	Parse() error
 	Sources() ([]source.Source, error)
@@ -33,6 +35,7 @@ type luaConfig struct {
 	providerDeclarations map[string]*lua.LTable
 }
 
+// NewLuaConfig builds new Lua script configuration provider.
 func NewLuaConfig(configFileName string) (Config, error) {
 	c := &luaConfig{
 		logger:         log.MustNewLogger().Named("lua_config"),
@@ -41,6 +44,8 @@ func NewLuaConfig(configFileName string) (Config, error) {
 	return c, nil
 }
 
+// Parse parses and executes the Lua script passed in and builds source and
+// provider declarations.
 func (c *luaConfig) Parse() error {
 	if c.state != nil && !c.state.IsClosed() {
 		c.state.Close()
@@ -98,6 +103,8 @@ func (c *luaConfig) Parse() error {
 	return nil
 }
 
+// Sources parses the source declarations into a slice of initialized and
+// configured sources.
 func (c *luaConfig) Sources() ([]source.Source, error) {
 	sources := make([]source.Source, 0)
 	for sourceName, sourceDeclaration := range c.sourceDeclarations {
@@ -146,6 +153,8 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 	return sources, nil
 }
 
+// Providers parses the provider declarations into a slice of initialized and
+// configured providers.
 func (c *luaConfig) Providers() ([]provider.Provider, error) {
 	providers := make([]provider.Provider, 0)
 	for providerName, providerDeclaration := range c.providerDeclarations {

@@ -2,17 +2,20 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"io/fs"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/sapslaj/zonepop/config"
 	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/controller"
 	"github.com/sapslaj/zonepop/pkg/log"
-	"go.uber.org/zap"
 )
 
 var (
@@ -26,7 +29,8 @@ func main() {
 	logger := log.MustNewLogger().Named("main")
 	defer func() {
 		err := logger.Sync()
-		if err != nil {
+		var perr *fs.PathError
+		if !errors.As(err, &perr) {
 			panic(err)
 		}
 	}()
@@ -70,7 +74,6 @@ func main() {
 		if err != nil {
 			logger.Sugar().Panicf("could not execute controller loop: %v", err)
 		}
-		os.Exit(0)
 		return
 	}
 

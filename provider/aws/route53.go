@@ -297,7 +297,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 	return err
 }
 
-func (u *route53Provider) dnsChange(name string, answers []string, recordType string, ttl int64) types.Change {
+func (p *route53Provider) dnsChange(name string, answers []string, recordType string, ttl int64) types.Change {
 	resourceRecords := make([]types.ResourceRecord, 0)
 	for _, address := range answers {
 		resourceRecords = append(resourceRecords, types.ResourceRecord{Value: aws.String(address)})

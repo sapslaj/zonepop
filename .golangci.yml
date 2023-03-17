@@ -14,39 +14,43 @@ linters:
     - test
     - unused
   disable:
-    - exhaustruct # TODO
-    - gci # TODO
-    - gocritic # TODO
+    - exhaustruct # disabled due to personal preference
     - goerr113 # TODO
-    - gofumpt # TODO
     - gomnd # "magic numbers" are essential for stack-based environments
     - ireturn # TODO
     - lll # TODO
-    - nlreturn # TODO
-    - nonamedreturns # TODO
+    - nlreturn # disabled due to personal preference
     - paralleltest # TODO
-    - revive # TODO
     - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
-    - stylecheck # TODO
     - tagliatelle # disabled because we explicitly do not want this
     - testpackage # TODO
-    - unparam # TODO
+    - unparam # explicitly disabled due to some not-technically-false-positives but suggestions that hurt consistency
     - varnamelen # TODO
     - wastedassign # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
-    - wrapcheck # TODO
-    - wsl # TODO
+    - wrapcheck # disabled due to personal preference
+    - wsl # disabled due to personal preference
 
 linters-settings:
   cyclop:
     max-complexity: 15
   funlen:
     lines: 100
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/sapslaj/zonepop)
+      - blank
+      - dot
+    custom-order: true
 
 issues:
   exclude:
     - Line contains TODO/BUG/FIXME # godox
+    - "`L' should not be capitalized" # gocritic
+    - and that stutters # revive
   exclude-rules:
-    - path: pkg/ssh_connection/ssh_connection.go
+    - path: pkg/sshconnection/sshconnection.go
       text: Use of ssh InsecureIgnoreHostKey should be audited
     - path: _test\.go
       linters:

@@ -8,7 +8,7 @@ import (
 
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
-	"github.com/sapslaj/zonepop/pkg/ssh_connection"
+	"github.com/sapslaj/zonepop/pkg/sshconnection"
 	"github.com/sapslaj/zonepop/source"
 )
 
@@ -34,7 +34,7 @@ type vyosSSHSource struct {
 
 func NewVyOSSSHSource(sourceConfig VyOSSSHSourceConfig) (source.Source, error) {
 	connect := func(host, username, password string) (ConnectionClient, error) {
-		return ssh_connection.Connect(host, username, password)
+		return sshconnection.Connect(host, username, password)
 	}
 	return &vyosSSHSource{
 		config:                 sourceConfig,
@@ -48,7 +48,6 @@ func NewVyOSSSHSource(sourceConfig VyOSSSHSourceConfig) (source.Source, error) {
 
 func (s *vyosSSHSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
 	connection, err := s.connectionClentConnect(s.config.Host, s.config.Username, s.config.Password)
-
 	if err != nil {
 		newErr := fmt.Errorf("could not connect to host %s: %w", s.config.Host, err)
 		s.logger.Error(newErr.Error())

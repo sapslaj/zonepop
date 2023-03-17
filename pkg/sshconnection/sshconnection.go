@@ -1,4 +1,4 @@
-package ssh_connection
+package sshconnection
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ type SSHConnection struct {
 
 func Connect(host, username, password string) (*SSHConnection, error) {
 	if !strings.Contains(host, ":") {
-		host = host + ":22"
+		host += ":22"
 	}
 	c := &SSHConnection{
 		host: host,
@@ -30,7 +30,7 @@ func Connect(host, username, password string) (*SSHConnection, error) {
 	client, err := ssh.Dial("tcp", host, c.Config)
 	c.Client = client
 	if err != nil {
-		return nil, fmt.Errorf("ssh_connection: could not connect to host %s: %w", c.host, err)
+		return nil, fmt.Errorf("sshconnection: could not connect to host %s: %w", c.host, err)
 	}
 	return c, nil
 }
@@ -42,7 +42,7 @@ func (c *SSHConnection) Disconnect() error {
 func (c *SSHConnection) Output(cmd string) ([]byte, error) {
 	session, err := c.Client.NewSession()
 	if err != nil {
-		return nil, fmt.Errorf("ssh_connection: could not start new session to host %s: %w", c.host, err)
+		return nil, fmt.Errorf("sshconnection: could not start new session to host %s: %w", c.host, err)
 	}
 	defer session.Close()
 	return session.Output(cmd)

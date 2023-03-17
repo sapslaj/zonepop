@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"go.uber.org/zap"
+
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/source"
-	"go.uber.org/zap"
 )
 
-type mockVyOSSSHConnection struct {
-}
+type mockVyOSSSHConnection struct{}
 
 func mockVyOSSSHConnectionConnect(host, username, password string) (*mockVyOSSSHConnection, error) {
 	return &mockVyOSSSHConnection{}, nil
