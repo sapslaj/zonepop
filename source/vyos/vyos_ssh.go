@@ -56,7 +56,7 @@ func (s *vyosSSHSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, er
 	defer func() {
 		err := connection.Disconnect()
 		if err != nil {
-			panic(err)
+			s.logger.Sugar().Errorf("error disconnecting from host %s: %v", s.config.Host, err)
 		}
 	}()
 

@@ -96,7 +96,7 @@ func (c *Controller) Run(ctx context.Context) {
 	for {
 		if c.ShouldRunOnce(time.Now()) {
 			if err := c.RunOnce(ctx); err != nil {
-				c.Logger.Sugar().Panicf("controller.Run error: %v", err)
+				c.Logger.Sugar().Errorf("controller.Run error: %v", err)
 			}
 		}
 		select {
