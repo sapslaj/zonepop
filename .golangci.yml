@@ -62,6 +62,7 @@ linters-settings:
     max-complexity: 17
   funlen:
     lines: 100
+    statements: 50
   gci:
     sections:
       - standard

@@ -14,6 +14,7 @@ import (
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"
 	custom_provider "github.com/sapslaj/zonepop/provider/custom"
+	hostsfile "github.com/sapslaj/zonepop/provider/hosts_file"
 	"github.com/sapslaj/zonepop/source"
 	custom_source "github.com/sapslaj/zonepop/source/custom"
 	"github.com/sapslaj/zonepop/source/vyos"
@@ -201,6 +202,17 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 					reverseFilterFunc,
 				)
 			}
+		case "hosts_file":
+			var hfConfig hostsfile.HostsFileProviderConfig
+			err = gluamapper.Map(providerConfig, &hfConfig)
+			if err != nil {
+				providerLogger.Errorw("error configuring provider", "err", err)
+				return providers, err
+			}
+			provider, err = hostsfile.NewHostsFileProvider(
+				hfConfig,
+				forwardFilterFunc,
+			)
 		}
 
 		if err != nil {
