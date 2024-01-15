@@ -162,8 +162,8 @@ func (m *mockRoute53Client) ListResourceRecordSets(
 	optFns ...func(*route53.Options),
 ) (*route53.ListResourceRecordSetsOutput, error) {
 	return &route53.ListResourceRecordSetsOutput{
-		IsTruncated: false,
-		MaxItems: aws.Int32(0),
+		IsTruncated:        false,
+		MaxItems:           aws.Int32(0),
 		ResourceRecordSets: []types.ResourceRecordSet{},
 	}, nil
 }

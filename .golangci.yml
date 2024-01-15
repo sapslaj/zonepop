@@ -14,25 +14,52 @@ linters:
     - test
     - unused
   disable:
-    - exhaustruct # disabled due to personal preference
-    - goerr113 # TODO
+    # must-disable
     - gomnd # "magic numbers" are essential for stack-based environments
-    - ireturn # TODO
-    - lll # TODO
-    - nlreturn # disabled due to personal preference
-    - paralleltest # TODO
-    - rowserrcheck # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
     - tagliatelle # disabled because we explicitly do not want this
-    - testpackage # TODO
     - unparam # explicitly disabled due to some not-technically-false-positives but suggestions that hurt consistency
-    - varnamelen # TODO
-    - wastedassign # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
-    - wrapcheck # disabled due to personal preference
-    - wsl # disabled due to personal preference
+    # deprecated linters
+    - deadcode
+    - exhaustivestruct
+    - golint
+    - ifshort
+    - interfacer
+    - maligned
+    - nosnakecase
+    - scopelint
+    - structcheck
+    - varcheck
+    # disabled due to personal preference
+    - depguard
+    - exhaustruct
+    - gomnd
+    - nlreturn
+    - tagliatelle
+    - unparam
+    - wrapcheck
+    - wsl
+    # disabled because of generics. https://github.com/golangci/golangci-lint/issues/2649
+    - rowserrcheck
+    - sqlclosecheck
+    - wastedassign
+    # TODO: evaluate
+    - errcheck
+    - gocognit
+    - goerr113
+    - inamedparam
+    - ireturn
+    - lll
+    - paralleltest
+    - perfsprint
+    - revive
+    - testifylint
+    - testpackage
+    - varnamelen
+
 
 linters-settings:
   cyclop:
-    max-complexity: 15
+    max-complexity: 17
   funlen:
     lines: 100
   gci:

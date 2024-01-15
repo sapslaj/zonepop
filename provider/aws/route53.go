@@ -389,7 +389,6 @@ func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanT
 			input.StartRecordType = nextRecordType
 		}
 		listOutput, err := p.client.ListResourceRecordSets(ctx, input)
-
 		if err != nil {
 			p.logger.Sugar().Errorw("cleanup: failed to list resource records for hosted zone", "zone", zoneID, "err", err)
 			return err
