@@ -156,6 +156,18 @@ func (m *mockRoute53Client) ChangeResourceRecordSets(
 	return out, err
 }
 
+func (m *mockRoute53Client) ListResourceRecordSets(
+	ctx context.Context,
+	params *route53.ListResourceRecordSetsInput,
+	optFns ...func(*route53.Options),
+) (*route53.ListResourceRecordSetsOutput, error) {
+	return &route53.ListResourceRecordSetsOutput{
+		IsTruncated: false,
+		MaxItems: aws.Int32(0),
+		ResourceRecordSets: []types.ResourceRecordSet{},
+	}, nil
+}
+
 func newMockNewRoute53Provider(
 	client Route53Client,
 	logger *zap.Logger,

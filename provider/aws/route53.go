@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -18,13 +19,16 @@ import (
 )
 
 type Route53ProviderConfig struct {
-	RecordSuffix        string
-	ForwardZoneID       string
-	ForwardZoneName     string
-	Ipv4ReverseZoneID   string
-	Ipv4ReverseZoneName string
-	Ipv6ReverseZoneID   string
-	Ipv6ReverseZoneName string
+	RecordSuffix         string
+	ForwardZoneID        string
+	ForwardZoneName      string
+	Ipv4ReverseZoneID    string
+	Ipv4ReverseZoneName  string
+	Ipv6ReverseZoneID    string
+	Ipv6ReverseZoneName  string
+	CleanForwardZone     bool
+	CleanIPv4ReverseZone bool
+	CleanIPv6ReverseZone bool
 }
 
 type Route53Client interface {
@@ -40,6 +44,11 @@ type Route53Client interface {
 		params *route53.ChangeResourceRecordSetsInput,
 		optFns ...func(*route53.Options),
 	) (*route53.ChangeResourceRecordSetsOutput, error)
+	ListResourceRecordSets(
+		ctx context.Context,
+		params *route53.ListResourceRecordSetsInput,
+		optFns ...func(*route53.Options),
+	) (*route53.ListResourceRecordSetsOutput, error)
 }
 
 type route53Provider struct {
@@ -125,6 +134,19 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		}
 		hostnameEndpoints[endpoint.Hostname] = append(hostnameEndpoints[endpoint.Hostname], endpoint)
 	}
+
+	if p.config.CleanForwardZone {
+		p.logger.Info("cleanup: cleaning forward lookup zone")
+		p.cleanupZone(ctx, p.config.ForwardZoneID, []types.RRType{types.RRTypeA, types.RRTypeAaaa}, func(name string) bool {
+			for hostname := range hostnameEndpoints {
+				if hostname == name {
+					return true
+				}
+			}
+			return false
+		})
+	}
+
 	changes := make([]types.Change, 0)
 	for hostname, endpoints := range hostnameEndpoints {
 		ipv4 := make([]string, 0)
@@ -158,6 +180,7 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		p.logger.Info("No forward lookup changes.")
 		return nil
 	}
+
 	_, err := p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
 		HostedZoneId: aws.String(p.config.ForwardZoneID),
 		ChangeBatch:  &types.ChangeBatch{Changes: changes},
@@ -178,6 +201,25 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 			return err
 		}
 		p.config.Ipv4ReverseZoneName = ipv4ReverseZoneName
+	}
+
+	if p.config.CleanIPv4ReverseZone {
+		p.logger.Info("cleanup: cleaning IPv4 reverse lookup zone")
+		p.cleanupZone(ctx, p.config.Ipv4ReverseZoneID, []types.RRType{types.RRTypePtr}, func(name string) bool {
+			for _, endpoint := range endpoints {
+				for _, ipv4 := range endpoint.IPv4s {
+					ptr, err := utils.ReverseAddr(ipv4)
+					if err != nil {
+						p.logger.Sugar().Errorw("cleanup: could not determine PTR record", "err", err)
+						break
+					}
+					if ptr == name {
+						return true
+					}
+				}
+			}
+			return false
+		})
 	}
 
 	changes := make([]types.Change, 0)
@@ -242,6 +284,25 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 			return err
 		}
 		p.config.Ipv6ReverseZoneName = ipv6ReverseZoneName
+	}
+
+	if p.config.CleanIPv6ReverseZone {
+		p.logger.Info("cleanup: cleaning IPv6 reverse lookup zone")
+		p.cleanupZone(ctx, p.config.Ipv6ReverseZoneID, []types.RRType{types.RRTypePtr}, func(name string) bool {
+			for _, endpoint := range endpoints {
+				for _, ipv6 := range endpoint.IPv6s {
+					ptr, err := utils.ReverseAddr(ipv6)
+					if err != nil {
+						p.logger.Sugar().Errorw("cleanup: could not determine PTR record", "err", err)
+						break
+					}
+					if ptr == name {
+						return true
+					}
+				}
+			}
+			return false
+		})
 	}
 
 	changes := make([]types.Change, 0)
@@ -311,4 +372,57 @@ func (p *route53Provider) dnsChange(name string, answers []string, recordType st
 			ResourceRecords: resourceRecords,
 		},
 	}
+}
+
+func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanTypes []types.RRType, foundFunc func(string) bool) error {
+	isTruncated := true
+	nextRecordIdentifier := ""
+	var nextRecordType types.RRType
+
+	for isTruncated {
+		cleanChanges := make([]types.Change, 0)
+		input := &route53.ListResourceRecordSetsInput{
+			HostedZoneId: aws.String(zoneID),
+		}
+		if nextRecordIdentifier != "" {
+			input.StartRecordIdentifier = aws.String(nextRecordIdentifier)
+			input.StartRecordType = nextRecordType
+		}
+		listOutput, err := p.client.ListResourceRecordSets(ctx, input)
+
+		if err != nil {
+			p.logger.Sugar().Errorw("cleanup: failed to list resource records for hosted zone", "zone", zoneID, "err", err)
+			return err
+		}
+
+		isTruncated = listOutput.IsTruncated
+		if listOutput.NextRecordIdentifier != nil {
+			nextRecordIdentifier = *listOutput.NextRecordIdentifier
+			nextRecordType = listOutput.NextRecordType
+		}
+
+		for i, rr := range listOutput.ResourceRecordSets {
+			rr := rr
+			if !slices.Contains(cleanTypes, rr.Type) {
+				continue
+			}
+			if !foundFunc(*rr.Name) {
+				p.logger.Sugar().Infof("cleanup: removing record %s", *rr.Name)
+				cleanChanges = append(cleanChanges, types.Change{
+					Action:            types.ChangeActionDelete,
+					ResourceRecordSet: &listOutput.ResourceRecordSets[i],
+				})
+			}
+		}
+
+		_, err = p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
+			HostedZoneId: aws.String(p.config.Ipv6ReverseZoneID),
+			ChangeBatch:  &types.ChangeBatch{Changes: cleanChanges},
+		})
+		if err != nil {
+			p.logger.Sugar().Errorw("cleanup: failed to delete resource records for IPv6 reverse zone", "err", err)
+			return err
+		}
+	}
+	return nil
 }
