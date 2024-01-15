@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 
@@ -54,16 +53,11 @@ func (s *customLuaSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, 
 	}
 	endpoints := make([]*endpoint.Endpoint, 0)
 	for i := 1; i <= endpointsLt.MaxN(); i++ {
-		var endpoint *endpoint.Endpoint
 		ltEndpoint, ok := endpointsLt.RawGetInt(i).(*lua.LTable)
 		if !ok {
 			return nil, fmt.Errorf("could not convert element %d to table", i)
 		}
-		err := gluamapper.Map(ltEndpoint, &endpoint)
-		if err != nil {
-			return nil, fmt.Errorf("error mapping table to endpoint: %w", err)
-		}
-		endpoints = append(endpoints, endpoint)
+		endpoints = append(endpoints, endpoint.FromLuaTable(s.state, ltEndpoint))
 	}
 	return endpoints, nil
 }
