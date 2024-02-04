@@ -27,9 +27,9 @@ type HostsFileProviderConfigSSH struct {
 
 type HostsFileProviderConfig struct {
 	RecordSuffix string
-	File        string
-	Permissions string
-	SSH         HostsFileProviderConfigSSH
+	File         string
+	Permissions  string
+	SSH          HostsFileProviderConfigSSH
 }
 
 type hostsFileProvider struct {

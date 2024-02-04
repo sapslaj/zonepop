@@ -2,9 +2,11 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
 	"github.com/sapslaj/zonepop/config/configtypes"
@@ -39,18 +41,26 @@ func TestShouldRunOnce(t *testing.T) {
 }
 
 type mockSource struct {
-	endpoints []*endpoint.Endpoint
+	endpoints     []*endpoint.Endpoint
+	endpointsFunc func(ctx context.Context) ([]*endpoint.Endpoint, error)
 }
 
 func (s *mockSource) Endpoints(ctx context.Context) ([]*endpoint.Endpoint, error) {
+	if s.endpointsFunc != nil {
+		return s.endpointsFunc(ctx)
+	}
 	return s.endpoints, nil
 }
 
 type mockProvider struct {
-	endpoints []*endpoint.Endpoint
+	endpoints           []*endpoint.Endpoint
+	updateEndpointsFunc func(ctx context.Context, endpoints []*endpoint.Endpoint) error
 }
 
 func (p *mockProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
+	if p.updateEndpointsFunc != nil {
+		return p.updateEndpointsFunc(ctx, endpoints)
+	}
 	p.endpoints = endpoints
 	return nil
 }
@@ -96,4 +106,70 @@ func TestRunOnce(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMultierr(t *testing.T) {
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "test-host",
+			IPv4s:              []string{"192.0.2.0"},
+			IPv6s:              nil,
+			RecordTTL:          60,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	sourceCalled := false
+	sourceOk := &mockSource{
+		endpoints: endpoints,
+		endpointsFunc: func(ctx context.Context) ([]*endpoint.Endpoint, error) {
+			sourceCalled = true
+			return endpoints, nil
+		},
+	}
+	sourceErrored := &mockSource{
+		endpoints: endpoints,
+		endpointsFunc: func(ctx context.Context) ([]*endpoint.Endpoint, error) {
+			return nil, errors.New("source error")
+		},
+	}
+	providerCalled := false
+	providerOk := &mockProvider{
+		updateEndpointsFunc: func(ctx context.Context, endpoints []*endpoint.Endpoint) error {
+			providerCalled = true
+			return nil
+		},
+	}
+	providerErrored := &mockProvider{
+		updateEndpointsFunc: func(ctx context.Context, endpoints []*endpoint.Endpoint) error {
+			return errors.New("provider error")
+		},
+	}
+	ctrl := &Controller{
+		// always load errored first so it runs first
+		Sources:   []source.Source{sourceErrored, sourceOk},
+		Providers: []provider.Provider{providerErrored, providerOk},
+		Interval:  1 * time.Minute,
+		Logger:    zap.NewNop(),
+	}
+
+	// First run should exit early on a source encountering an error and not call
+	// providers
+	ctx := context.Background()
+	err := ctrl.RunOnce(ctx)
+	assert.ErrorContainsf(t, err, "source error", "source returned error")
+	assert.True(t, sourceCalled)
+	assert.False(t, providerCalled)
+
+	// Reset
+	sourceCalled = false
+	providerCalled = false
+
+	// Let sources work this time. Providers should be called and it should
+	// return an error from the errored provider.
+	ctrl.Sources = []source.Source{sourceOk}
+	err = ctrl.RunOnce(ctx)
+	assert.ErrorContainsf(t, err, "provider error", "provider returned error")
+	assert.True(t, sourceCalled)
+	assert.True(t, providerCalled)
 }

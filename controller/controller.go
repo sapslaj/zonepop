@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
 	"github.com/sapslaj/zonepop/config/configtypes"
@@ -28,6 +29,7 @@ type Controller struct {
 
 // RunOnce runs a single iteration of a reconciliation loop.
 func (c *Controller) RunOnce(ctx context.Context) error {
+	var errors error
 	logger := c.Logger.Sugar()
 	endpoints := make([]*endpoint.Endpoint, 0)
 	for _, s := range c.Sources {
@@ -38,9 +40,12 @@ func (c *Controller) RunOnce(ctx context.Context) error {
 				"source", s,
 				"err", err,
 			)
-			return err
+			errors = multierr.Append(errors, err)
 		}
 		endpoints = append(endpoints, e...)
+	}
+	if errors != nil {
+		return errors
 	}
 	for _, endpoint := range endpoints {
 		logger.Infow(
@@ -66,11 +71,11 @@ func (c *Controller) RunOnce(ctx context.Context) error {
 					"provider", p,
 					"err", err,
 				)
-				return err
+				errors = multierr.Append(errors, err)
 			}
 		}
 	}
-	return nil
+	return errors
 }
 
 // ScheduleRunOnce makes sure execution happens at most once per interval.
