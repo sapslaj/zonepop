@@ -24,8 +24,8 @@ import (
 // configuration and initialization.
 type Config interface {
 	Parse() error
-	Sources() ([]source.Source, error)
-	Providers() ([]provider.Provider, error)
+	Sources() ([]source.NamedSource, error)
+	Providers() ([]provider.NamedProvider, error)
 }
 
 type luaConfig struct {
@@ -106,13 +106,13 @@ func (c *luaConfig) Parse() error {
 
 // Sources parses the source declarations into a slice of initialized and
 // configured sources.
-func (c *luaConfig) Sources() ([]source.Source, error) {
-	sources := make([]source.Source, 0)
+func (c *luaConfig) Sources() ([]source.NamedSource, error) {
+	sources := make([]source.NamedSource, 0)
 	for sourceName, sourceDeclaration := range c.sourceDeclarations {
 		sourceLogger := c.logger.With(zap.String("source", sourceName)).Sugar()
 		sourceLogger.Infof("config: processing source %s", sourceName)
 
-		var source source.Source
+		var sourceInstance source.Source
 		var err error
 
 		kind := sourceDeclaration.RawGetInt(1).String()
@@ -130,7 +130,7 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 		case "custom":
 			endpointFunc, ok := sourceConfig.RawGetString("endpoints").(*lua.LFunction)
 			if ok {
-				source, err = custom_source.NewCustomLuaSource(c.state, endpointFunc)
+				sourceInstance, err = custom_source.NewCustomLuaSource(c.state, endpointFunc)
 			}
 		case "vyos_ssh":
 			var vyosConfig vyos.VyOSSSHSourceConfig
@@ -139,15 +139,18 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 				sourceLogger.Errorw("error configuring source", "err", err)
 				return sources, err
 			}
-			source, err = vyos.NewVyOSSSHSource(vyosConfig)
+			sourceInstance, err = vyos.NewVyOSSSHSource(vyosConfig)
 		}
 
 		if err != nil {
 			sourceLogger.Errorw("error configuring source", "err", err)
 			return sources, err
 		}
-		if source != nil {
-			sources = append(sources, source)
+		if sourceInstance != nil {
+			sources = append(sources, source.NamedSource{
+				Name:   sourceName,
+				Source: sourceInstance,
+			})
 			sourceLogger.Info("config: Finished configuration")
 		}
 	}
@@ -156,13 +159,13 @@ func (c *luaConfig) Sources() ([]source.Source, error) {
 
 // Providers parses the provider declarations into a slice of initialized and
 // configured providers.
-func (c *luaConfig) Providers() ([]provider.Provider, error) {
-	providers := make([]provider.Provider, 0)
+func (c *luaConfig) Providers() ([]provider.NamedProvider, error) {
+	providers := make([]provider.NamedProvider, 0)
 	for providerName, providerDeclaration := range c.providerDeclarations {
 		providerLogger := c.logger.With(zap.String("provider", providerName)).Sugar()
 		providerLogger.Infof("config: processing provider %s", providerName)
 
-		var provider provider.Provider
+		var providerInstance provider.Provider
 		var err error
 
 		kind := providerDeclaration.RawGetInt(1).String()
@@ -187,7 +190,7 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 				return providers, err
 			}
 
-			provider, err = aws.NewRoute53Provider(
+			providerInstance, err = aws.NewRoute53Provider(
 				r53Config,
 				forwardFilterFunc,
 				reverseFilterFunc,
@@ -195,7 +198,7 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 		case "custom":
 			updateEndpointsFunc, ok := providerConfig.RawGetString("update_endpoints").(*lua.LFunction)
 			if ok {
-				provider, err = custom_provider.NewCustomLuaProvider(
+				providerInstance, err = custom_provider.NewCustomLuaProvider(
 					c.state,
 					updateEndpointsFunc,
 					forwardFilterFunc,
@@ -209,7 +212,7 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 				providerLogger.Errorw("error configuring provider", "err", err)
 				return providers, err
 			}
-			provider, err = hostsfile.NewHostsFileProvider(
+			providerInstance, err = hostsfile.NewHostsFileProvider(
 				hfConfig,
 				forwardFilterFunc,
 			)
@@ -219,8 +222,11 @@ func (c *luaConfig) Providers() ([]provider.Provider, error) {
 			providerLogger.Errorw("error configuring provider", "err", err)
 			return providers, err
 		}
-		if provider != nil {
-			providers = append(providers, provider)
+		if providerInstance != nil {
+			providers = append(providers, provider.NamedProvider{
+				Name:     providerName,
+				Provider: providerInstance,
+			})
 			providerLogger.Info("config: Finished configuration")
 		}
 	}

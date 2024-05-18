@@ -15,8 +15,8 @@ import (
 )
 
 type Controller struct {
-	Sources   []source.Source
-	Providers []provider.Provider
+	Sources   []source.NamedSource
+	Providers []provider.NamedProvider
 	// The interval between individual synchronizations
 	Interval time.Duration
 	// Logger instance
@@ -30,21 +30,41 @@ type Controller struct {
 // RunOnce runs a single iteration of a reconciliation loop.
 func (c *Controller) RunOnce(ctx context.Context) error {
 	var errors error
+	start := time.Now()
+	defer func() {
+		status := "success"
+		if errors != nil {
+			status = "errored"
+		}
+		MetricRuns.WithLabelValues(status).Inc()
+		MetricLastRunTimestamp.SetToCurrentTime()
+		duration := time.Since(start)
+		MetricLastRunDurationSeconds.Set(duration.Seconds())
+		MetricRunDurationSeconds.Observe(duration.Seconds())
+	}()
 	logger := c.Logger.Sugar()
 	endpoints := make([]*endpoint.Endpoint, 0)
 	for _, s := range c.Sources {
-		e, err := s.Endpoints(ctx)
+		e, err := s.Source.Endpoints(ctx)
 		if err != nil {
 			logger.Errorw(
 				"error getting endpoints from source",
-				"source", s,
+				"source", s.Name,
 				"err", err,
 			)
 			errors = multierr.Append(errors, err)
+			MetricSourceUp.WithLabelValues(s.Name).Set(0)
+		} else {
+			MetricSourceUp.WithLabelValues(s.Name).Set(1)
 		}
+		MetricEndpoints.WithLabelValues(s.Name).Set(float64(len(e)))
 		endpoints = append(endpoints, e...)
 	}
 	if errors != nil {
+		// Bail early, and set all providers to down
+		for _, p := range c.Providers {
+			MetricProviderUp.WithLabelValues(p.Name).Set(0)
+		}
 		return errors
 	}
 	for _, endpoint := range endpoints {
@@ -64,14 +84,17 @@ func (c *Controller) RunOnce(ctx context.Context) error {
 	}
 	if !dryRun {
 		for _, p := range c.Providers {
-			err := p.UpdateEndpoints(ctx, endpoints)
+			err := p.Provider.UpdateEndpoints(ctx, endpoints)
 			if err != nil {
 				logger.Errorw(
 					"error updating endpoints with provider",
-					"provider", p,
+					"provider", p.Name,
 					"err", err,
 				)
 				errors = multierr.Append(errors, err)
+				MetricProviderUp.WithLabelValues(p.Name).Set(0)
+			} else {
+				MetricProviderUp.WithLabelValues(p.Name).Set(1)
 			}
 		}
 	}

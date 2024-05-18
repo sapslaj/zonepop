@@ -83,8 +83,12 @@ func TestRunOnce(t *testing.T) {
 			}
 			p := &mockProvider{}
 			ctrl := &Controller{
-				Sources:   []source.Source{s},
-				Providers: []provider.Provider{p},
+				Sources:   []source.NamedSource{
+					{Name: "mock_source", Source: s},
+				},
+				Providers: []provider.NamedProvider{
+					{Name: "mock_provider", Provider: p},
+				},
 				Interval:  1 * time.Minute,
 				Logger:    zap.NewNop(),
 			}
@@ -147,8 +151,14 @@ func TestMultierr(t *testing.T) {
 	}
 	ctrl := &Controller{
 		// always load errored first so it runs first
-		Sources:   []source.Source{sourceErrored, sourceOk},
-		Providers: []provider.Provider{providerErrored, providerOk},
+		Sources:   []source.NamedSource{
+			{Name: "source_errored", Source: sourceErrored},
+			{Name: "source_ok", Source: sourceOk},
+		},
+		Providers: []provider.NamedProvider{
+			{Name: "provider_errored", Provider: providerErrored},
+			{Name: "provider_ok", Provider: providerOk},
+		},
 		Interval:  1 * time.Minute,
 		Logger:    zap.NewNop(),
 	}
@@ -167,7 +177,7 @@ func TestMultierr(t *testing.T) {
 
 	// Let sources work this time. Providers should be called and it should
 	// return an error from the errored provider.
-	ctrl.Sources = []source.Source{sourceOk}
+	ctrl.Sources = []source.NamedSource{{Name: "source_ok", Source: sourceOk}}
 	err = ctrl.RunOnce(ctx)
 	assert.ErrorContainsf(t, err, "provider error", "provider returned error")
 	assert.True(t, sourceCalled)

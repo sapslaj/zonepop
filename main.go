@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io/fs"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
 	"github.com/sapslaj/zonepop/config"
@@ -23,6 +26,7 @@ var (
 	interval       = flag.Duration("interval", 1*time.Minute, "The interval between two consecutive synchronizations in duration format (default: 1m)")
 	once           = flag.Bool("once", false, "When enabled, exits the synchronization loop after the first iteration (default: disabled)")
 	dryRun         = flag.Bool("dry-run", false, "When enabled, prints DNS record changes rather than actually performing them (default: disabled)")
+	metricsPort    = flag.Int("metrics-port", 9412, "Prometheus metrics port")
 )
 
 func main() {
@@ -76,6 +80,13 @@ func main() {
 		}
 		return
 	}
+
+	go func() {
+		addr := fmt.Sprintf(":%d", *metricsPort)
+		logger.Sugar().Infof("Metrics available at http://0.0.0.0%s/metrics", addr)
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(addr, nil)
+	}()
 
 	ctrl.ScheduleRunOnce(time.Now())
 	ctrl.Run(ctx)

@@ -25,7 +25,7 @@ func newTestLuaConfig(t *testing.T, configFileName string) Config {
 	return config
 }
 
-func configProviders(t *testing.T, config Config) []provider.Provider {
+func configProviders(t *testing.T, config Config) []provider.NamedProvider {
 	t.Helper()
 	p, err := config.Providers()
 	if err != nil {
@@ -34,7 +34,7 @@ func configProviders(t *testing.T, config Config) []provider.Provider {
 	return p
 }
 
-func configSources(t *testing.T, config Config) []source.Source {
+func configSources(t *testing.T, config Config) []source.NamedSource {
 	t.Helper()
 	s, err := config.Sources()
 	if err != nil {
@@ -62,13 +62,13 @@ func TestLuaConfig_Basic(t *testing.T) {
 		t.Run(flavorName, func(t *testing.T) {
 			config := newTestLuaConfig(t, configFileName)
 			sources := configSources(t, config)
-			if len(sources) != 1 {
-				t.Errorf("len(sources) != 1 (got %d)", len(sources))
-			}
-			assertType(t, sources[0], "*vyos.vyosSSHSource")
+			assert.Len(t, sources, 1)
+			assert.Equal(t, sources[0].Name, "vyos")
+			assertType(t, sources[0].Source, "*vyos.vyosSSHSource")
 			providers := configProviders(t, config)
 			assert.Len(t, providers, 1)
-			assertType(t, providers[0], "*aws.route53Provider")
+			assert.Equal(t, providers[0].Name, "route53")
+			assertType(t, providers[0].Provider, "*aws.route53Provider")
 		})
 	}
 }
@@ -76,14 +76,17 @@ func TestLuaConfig_Basic(t *testing.T) {
 func TestLuaConfig_Providers(t *testing.T) {
 	luaConfig := map[string]struct {
 		providerType   string
+		providerName   string
 		configFileName string
 	}{
 		"custom": {
 			providerType:   "*custom.customLuaProvider",
+			providerName:   "custom",
 			configFileName: "test_lua/lua_config_providers_custom.lua",
 		},
 		"aws_route53": {
 			providerType:   "*aws.route53Provider",
+			providerName:   "route53",
 			configFileName: "test_lua/lua_config_providers_aws_route53.lua",
 		},
 	}
@@ -92,7 +95,8 @@ func TestLuaConfig_Providers(t *testing.T) {
 			config := newTestLuaConfig(t, tc.configFileName)
 			providers := configProviders(t, config)
 			assert.Len(t, providers, 1)
-			assertType(t, providers[0], tc.providerType)
+			assert.Equal(t, providers[0].Name, tc.providerName)
+			assertType(t, providers[0].Provider, tc.providerType)
 		})
 	}
 }
@@ -100,14 +104,17 @@ func TestLuaConfig_Providers(t *testing.T) {
 func TestLuaConfig_Sources(t *testing.T) {
 	luaConfig := map[string]struct {
 		sourceType     string
+		sourceName     string
 		configFileName string
 	}{
 		"custom": {
 			sourceType:     "*custom.customLuaSource",
+			sourceName:     "custom",
 			configFileName: "test_lua/lua_config_sources_custom.lua",
 		},
 		"vyos_ssh": {
 			sourceType:     "*vyos.vyosSSHSource",
+			sourceName:     "vyos",
 			configFileName: "test_lua/lua_config_sources_vyos_ssh.lua",
 		},
 	}
@@ -116,7 +123,8 @@ func TestLuaConfig_Sources(t *testing.T) {
 			config := newTestLuaConfig(t, tc.configFileName)
 			sources := configSources(t, config)
 			assert.Len(t, sources, 1)
-			assertType(t, sources[0], tc.sourceType)
+			assert.Equal(t, sources[0].Name, tc.sourceName)
+			assertType(t, sources[0].Source, tc.sourceType)
 		})
 	}
 }
@@ -154,7 +162,7 @@ func TestLuaConfig_LookupFilter(t *testing.T) {
 			config := newTestLuaConfig(t, tc.configFileName)
 			providers := configProviders(t, config)
 			ctx := context.Background()
-			err := providers[0].UpdateEndpoints(ctx, tc.endpoints)
+			err := providers[0].Provider.UpdateEndpoints(ctx, tc.endpoints)
 			if err != nil {
 				t.Fatalf("UpdateEndpoints failed: %v", err)
 			}
