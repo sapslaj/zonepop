@@ -53,9 +53,9 @@ func NewPrometheusMetricsProvider(
 	endpointMetricLabels = append(endpointMetricLabels, providerConfig.SourceLabels...)
 	endpointMetricLabels = append(endpointMetricLabels, providerConfig.ProviderLabels...)
 	p := &prometheusMetricsProvider{
-		name:   name,
-		config: providerConfig,
-		logger: log.MustNewLogger().Named("prometheus_metrics_provider:" + name),
+		name:                name,
+		config:              providerConfig,
+		logger:              log.MustNewLogger().Named("prometheus_metrics_provider:" + name),
 		forwardLookupFilter: forwardLookupFilter,
 		endpointMetricDesc: prometheus.NewDesc(
 			prometheus.BuildFQName(

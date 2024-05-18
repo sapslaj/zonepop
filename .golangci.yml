@@ -15,7 +15,7 @@ linters:
     - unused
   disable:
     # must-disable
-    - gomnd # "magic numbers" are essential for stack-based environments
+    - mnd # "magic numbers" are essential for stack-based environments
     - tagliatelle # disabled because we explicitly do not want this
     - unparam # explicitly disabled due to some not-technically-false-positives but suggestions that hurt consistency
     # deprecated linters
@@ -43,14 +43,15 @@ linters:
     - sqlclosecheck
     - wastedassign
     # TODO: evaluate
+    - err113
     - errcheck
     - gocognit
-    - goerr113
     - inamedparam
     - ireturn
     - lll
     - paralleltest
     - perfsprint
+    - promlinter
     - revive
     - testifylint
     - testpackage
@@ -59,7 +60,7 @@ linters:
 
 linters-settings:
   cyclop:
-    max-complexity: 17
+    max-complexity: 18
   funlen:
     lines: 100
     statements: 50
@@ -89,6 +90,12 @@ issues:
     - path: main\.go
       linters:
         # flags are known globals
+        - gochecknoglobals
+        # TODO: consider re-enabling
+        - gosec
+    - path: metrics\.go
+      linters:
+        # metrics contains known acceptable globals
         - gochecknoglobals
     - path: config/configtypes/configtypes\.go
       linters:

@@ -9,7 +9,7 @@ import (
 const MetricSubsystem = "controller"
 
 var (
-	// No Subsystem
+	// No Subsystem.
 	MetricSourceUp = metrics.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "source_up",
@@ -28,30 +28,30 @@ var (
 		},
 		[]string{"source"},
 	)
-	// Controller Subsystem
+	// Controller Subsystem.
 	MetricRuns = metrics.NewCounterVec(
 		prometheus.CounterOpts{
 			Subsystem: MetricSubsystem,
-			Name: "runs",
+			Name:      "runs",
 		},
 		[]string{"status"},
 	)
 	MetricLastRunTimestamp = metrics.NewGauge(
 		prometheus.GaugeOpts{
 			Subsystem: MetricSubsystem,
-			Name: "last_run_timestamp",
+			Name:      "last_run_timestamp",
 		},
 	)
 	MetricLastRunDurationSeconds = metrics.NewGauge(
 		prometheus.GaugeOpts{
 			Subsystem: MetricSubsystem,
-			Name: "last_run_duration_seconds",
+			Name:      "last_run_duration_seconds",
 		},
 	)
 	MetricRunDurationSeconds = metrics.NewHistogram(
 		prometheus.HistogramOpts{
 			Subsystem: MetricSubsystem,
-			Name: "run_duration_seconds",
+			Name:      "run_duration_seconds",
 		},
 	)
 )

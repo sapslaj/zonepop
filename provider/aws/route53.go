@@ -401,7 +401,6 @@ func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanT
 		}
 
 		for i, rr := range listOutput.ResourceRecordSets {
-			rr := rr
 			if !slices.Contains(cleanTypes, rr.Type) {
 				continue
 			}

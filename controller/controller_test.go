@@ -83,14 +83,14 @@ func TestRunOnce(t *testing.T) {
 			}
 			p := &mockProvider{}
 			ctrl := &Controller{
-				Sources:   []source.NamedSource{
+				Sources: []source.NamedSource{
 					{Name: "mock_source", Source: s},
 				},
 				Providers: []provider.NamedProvider{
 					{Name: "mock_provider", Provider: p},
 				},
-				Interval:  1 * time.Minute,
-				Logger:    zap.NewNop(),
+				Interval: 1 * time.Minute,
+				Logger:   zap.NewNop(),
 			}
 
 			ctx := context.Background()
@@ -151,7 +151,7 @@ func TestMultierr(t *testing.T) {
 	}
 	ctrl := &Controller{
 		// always load errored first so it runs first
-		Sources:   []source.NamedSource{
+		Sources: []source.NamedSource{
 			{Name: "source_errored", Source: sourceErrored},
 			{Name: "source_ok", Source: sourceOk},
 		},
@@ -159,8 +159,8 @@ func TestMultierr(t *testing.T) {
 			{Name: "provider_errored", Provider: providerErrored},
 			{Name: "provider_ok", Provider: providerOk},
 		},
-		Interval:  1 * time.Minute,
-		Logger:    zap.NewNop(),
+		Interval: 1 * time.Minute,
+		Logger:   zap.NewNop(),
 	}
 
 	// First run should exit early on a source encountering an error and not call
