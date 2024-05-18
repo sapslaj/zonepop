@@ -31,6 +31,9 @@ type Controller struct {
 func (c *Controller) RunOnce(ctx context.Context) error {
 	var errors error
 	start := time.Now()
+	// Hack to force the labels to always show up
+	MetricRuns.WithLabelValues("success").Add(0)
+	MetricRuns.WithLabelValues("errored").Add(0)
 	defer func() {
 		status := "success"
 		if errors != nil {

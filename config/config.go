@@ -15,6 +15,7 @@ import (
 	"github.com/sapslaj/zonepop/provider/aws"
 	custom_provider "github.com/sapslaj/zonepop/provider/custom"
 	hostsfile "github.com/sapslaj/zonepop/provider/hosts_file"
+	prometheusmetrics "github.com/sapslaj/zonepop/provider/prometheus_metrics"
 	"github.com/sapslaj/zonepop/source"
 	custom_source "github.com/sapslaj/zonepop/source/custom"
 	"github.com/sapslaj/zonepop/source/vyos"
@@ -214,6 +215,18 @@ func (c *luaConfig) Providers() ([]provider.NamedProvider, error) {
 			}
 			providerInstance, err = hostsfile.NewHostsFileProvider(
 				hfConfig,
+				forwardFilterFunc,
+			)
+		case "prometheus_metrics":
+			var pmConfig prometheusmetrics.PrometheusMetricsProviderConfig
+			err = gluamapper.Map(providerConfig, &pmConfig)
+			if err != nil {
+				providerLogger.Errorw("error configuring provider", "err", err)
+				return providers, err
+			}
+			providerInstance, err = prometheusmetrics.NewPrometheusMetricsProvider(
+				providerName,
+				pmConfig,
 				forwardFilterFunc,
 			)
 		}
