@@ -149,27 +149,42 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 
 	changes := make([]types.Change, 0)
 	for hostname, endpoints := range hostnameEndpoints {
+		fullHostname := utils.DNSSafeName(hostname) + p.config.RecordSuffix
+		hostnameLogger := p.logger.Sugar().With(
+			"hostname", hostname,
+			"full_hostname", fullHostname,
+		)
 		ipv4 := make([]string, 0)
 		ipv6 := make([]string, 0)
 		if len(endpoints) == 0 {
-			p.logger.Sugar().Warnf("No endpoints for hostname %q", hostname)
+			hostnameLogger.Warnf("No endpoints for hostname %q", hostname)
 			continue
 		}
 		for _, endpoint := range endpoints {
 			ipv4 = append(ipv4, endpoint.IPv4s...)
 			ipv6 = append(ipv6, endpoint.IPv6s...)
 		}
+		ttl := endpoints[0].RecordTTL
+		hostnameLogger = hostnameLogger.With("ttl", ttl)
 		if len(ipv4) > 0 {
+			hostnameLogger.With(
+				"ipv4", ipv4,
+				"record_type", "A",
+			).Infof("adding IPv4 (A) record %q for hostname %q", ipv4, hostname)
 			changes = append(changes, p.dnsChange(
-				utils.DNSSafeName(hostname)+p.config.RecordSuffix,
+				fullHostname,
 				ipv4,
 				"A",
 				endpoints[0].RecordTTL,
 			))
 		}
 		if len(ipv6) > 0 {
+			hostnameLogger.With(
+				"ipv6", ipv6,
+				"record_type", "AAAA",
+			).Infof("adding IPv6 (AAAA) record %q for hostname %q", ipv6, hostname)
 			changes = append(changes, p.dnsChange(
-				utils.DNSSafeName(hostname)+p.config.RecordSuffix,
+				fullHostname,
 				ipv6,
 				"AAAA",
 				endpoints[0].RecordTTL,
@@ -222,6 +237,7 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 		})
 	}
 
+	ptrHostnames := map[string]string{}
 	changes := make([]types.Change, 0)
 	for _, endpoint := range endpoints {
 		hostname := endpoint.Hostname
@@ -229,12 +245,17 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 			addrLogger := p.logger.Sugar().With(
 				"addr", ipv4,
 				"zone", p.config.Ipv4ReverseZoneName,
+				"ttl", endpoint.RecordTTL,
 			)
 			if hostname == "" {
 				hostname = "ip-" + strings.ReplaceAll(ipv4, ".", "-")
 				addrLogger.Infof("No hostname defined for endpoint, using generated hostname of %s", hostname)
 			}
-			addrLogger = addrLogger.With("hostname", hostname)
+			fullHostname := utils.DNSSafeName(hostname) + p.config.RecordSuffix
+			addrLogger = addrLogger.With(
+				"hostname", hostname,
+				"full_hostname", fullHostname,
+			)
 			fits, err := utils.FitsInReverseZone(ipv4, p.config.Ipv4ReverseZoneName)
 			if err != nil {
 				addrLogger.Errorw(
@@ -252,12 +273,19 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
 			}
+			addrLogger = addrLogger.With("ptr", ptr)
+			if existingHostname, seen := ptrHostnames[ptr]; seen {
+				addrLogger.Warnf("already registered PTR %q with hostname %q", ptr, existingHostname)
+				continue
+			}
+			ptrHostnames[ptr] = fullHostname
 			changes = append(changes, p.dnsChange(
 				ptr,
-				[]string{utils.DNSSafeName(hostname) + p.config.RecordSuffix},
+				[]string{fullHostname},
 				"PTR",
 				endpoint.RecordTTL,
 			))
+			addrLogger.Infof("adding IPv4 PTR record %q for hostname %q", ptr, hostname)
 		}
 	}
 	if len(changes) == 0 {
@@ -305,6 +333,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 		})
 	}
 
+	ptrHostnames := map[string]string{}
 	changes := make([]types.Change, 0)
 	for _, endpoint := range endpoints {
 		hostname := endpoint.Hostname
@@ -316,10 +345,14 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 			hostname = "ip-" + strings.ReplaceAll(endpoint.IPv4s[0], ".", "-")
 			p.logger.Sugar().Infof("No hostname defined for endpoint, using generated hostname of %s", hostname)
 		}
+		fullHostname := utils.DNSSafeName(hostname) + p.config.RecordSuffix
 		for _, ipv6 := range endpoint.IPv6s {
 			addrLogger := p.logger.Sugar().With(
 				"addr", ipv6,
 				"zone", p.config.Ipv6ReverseZoneName,
+				"ttl", endpoint.RecordTTL,
+				"full_hostname", fullHostname,
+				"hostname", hostname,
 			)
 			fits, err := utils.FitsInReverseZone(ipv6, p.config.Ipv6ReverseZoneName)
 			if err != nil {
@@ -338,12 +371,19 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
 			}
+			addrLogger = addrLogger.With("ptr", ptr)
+			if existingHostname, seen := ptrHostnames[ptr]; seen {
+				addrLogger.Warnf("already registered PTR %q with hostname %q", ptr, existingHostname)
+				continue
+			}
+			ptrHostnames[ptr] = fullHostname
 			changes = append(changes, p.dnsChange(
 				ptr,
-				[]string{utils.DNSSafeName(hostname) + p.config.RecordSuffix},
+				[]string{fullHostname},
 				"PTR",
 				endpoint.RecordTTL,
 			))
+			addrLogger.Infof("adding IPv6 PTR record %q for hostname %q", ptr, hostname)
 		}
 	}
 	if len(changes) == 0 {
