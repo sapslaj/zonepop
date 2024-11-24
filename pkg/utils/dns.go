@@ -12,7 +12,7 @@ import (
 // be used in a DNS record.
 func DNSSafeName(name string) string {
 	re := regexp.MustCompile(`\s+`)
-	return re.ReplaceAllString(name, "-")
+	return strings.Trim(re.ReplaceAllString(name, "-"), ".")
 }
 
 const hexDigit = "0123456789abcdef"
