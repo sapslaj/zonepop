@@ -3,6 +3,7 @@ package vyos
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -113,8 +114,8 @@ func (s *vyosSSHSource) getNeighbors(connection ConnectionClient) ([]*Neighbor, 
 	return ParseNeighborLines(string(out))
 }
 
-func (s *vyosSSHSource) getLeases(connection ConnectionClient, neighbors bool) ([]*Lease, error) {
-	s.logger.Info("Getting leases")
+func (s *vyosSSHSource) getLeasesEquuleus(connection ConnectionClient) ([]*Lease, error) {
+	s.logger.Info("Getting leases (Equuleus)")
 	out, err := connection.Output("/usr/libexec/vyos/op_mode/show_dhcp.py --leases --json")
 	if err != nil {
 		newErr := fmt.Errorf("error getting lease output: %w", err)
@@ -126,6 +127,43 @@ func (s *vyosSSHSource) getLeases(connection ConnectionClient, neighbors bool) (
 		newErr := fmt.Errorf("error parsing lease output: %w", err)
 		s.logger.Error(newErr.Error())
 		return nil, newErr
+	}
+	return leases, nil
+}
+
+func (s *vyosSSHSource) getLeasesSagitta(connection ConnectionClient) ([]*Lease, error) {
+	s.logger.Info("Getting leases (Sagitta)")
+	out, err := connection.Output("/usr/libexec/vyos/op_mode/dhcp.py show_server_leases --family inet")
+	if err != nil {
+		newErr := fmt.Errorf("error getting lease output: %w", err)
+		s.logger.Error(newErr.Error())
+		return nil, newErr
+	}
+	leases, err := LeasesFromShowOutput(out)
+	if err != nil {
+		newErr := fmt.Errorf("error parsing lease output: %w", err)
+		s.logger.Error(newErr.Error())
+		return nil, newErr
+	}
+	return leases, nil
+}
+
+func (s *vyosSSHSource) getLeases(connection ConnectionClient, neighbors bool) ([]*Lease, error) {
+	s.logger.Info("Determining lease info strategy")
+	out, err := connection.Output("file /usr/libexec/vyos/op_mode/show_dhcp.py")
+	if err != nil {
+		newErr := fmt.Errorf("error determining lease info strategy: %w", err)
+		s.logger.Error(newErr.Error())
+		return nil, newErr
+	}
+	var leases []*Lease
+	if strings.Index(string(out), "No such file or directory") == -1 {
+		leases, err = s.getLeasesEquuleus(connection)
+	} else {
+		leases, err = s.getLeasesSagitta(connection)
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	if neighbors {

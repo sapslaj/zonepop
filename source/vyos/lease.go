@@ -22,6 +22,30 @@ func LeasesFromJSON(b []byte) ([]*Lease, error) {
 	return leases, nil
 }
 
+func getFieldValue(fields []string, index int) string {
+	if index >= len(fields) {
+		return ""
+	}
+	return fields[index]
+}
+
+func LeasesFromShowOutput(b []byte) ([]*Lease, error) {
+	rows, err := TabulateParse(b)
+	if err != nil {
+		return nil, err
+	}
+	var leases []*Lease
+	for _, row := range rows {
+		leases = append(leases, &Lease{
+			Pool:            row["Pool"],
+			IP:              row["IP Address"],
+			Hostname:        row["Hostname"],
+			HardwareAddress: row["MAC address"],
+		})
+	}
+	return leases, nil
+}
+
 func (l *Lease) AssociatePotentialIPv6s(neighbors []*Neighbor) {
 	for _, neighbor := range neighbors {
 		if neighbor.To == "" {
