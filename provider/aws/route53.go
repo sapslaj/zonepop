@@ -455,6 +455,7 @@ func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanT
 
 		if len(cleanChanges) == 0 {
 			p.logger.Info("cleanup: no changes needed")
+			return nil
 		}
 
 		_, err = p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
