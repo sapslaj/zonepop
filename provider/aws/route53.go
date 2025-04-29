@@ -161,8 +161,17 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 			continue
 		}
 		for _, endpoint := range endpoints {
-			ipv4 = append(ipv4, endpoint.IPv4s...)
-			ipv6 = append(ipv6, endpoint.IPv6s...)
+			// make sure its deduped otherwise Route53 will get angry with us
+			for _, newIpv4 := range endpoint.IPv4s {
+				if !slices.Contains(ipv4, newIpv4) {
+					ipv4 = append(ipv4, newIpv4)
+				}
+			}
+			for _, newIpv6 := range endpoint.IPv6s {
+				if !slices.Contains(ipv6, newIpv6) {
+					ipv6 = append(ipv6, newIpv6)
+				}
+			}
 		}
 		ttl := endpoints[0].RecordTTL
 		hostnameLogger = hostnameLogger.With("ttl", ttl)

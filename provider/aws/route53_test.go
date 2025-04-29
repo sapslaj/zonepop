@@ -594,3 +594,56 @@ func TestUpdateEndpoints_NonFittingReverseZones(t *testing.T) {
 		"mockRoute53Client.ChangeResourceRecordSets was called an incorrect number of times",
 	)
 }
+
+func TestUpdateEndpoints_Deduplicate(t *testing.T) {
+	mockClient := &mockRoute53Client{}
+	config := Route53ProviderConfig{
+		RecordSuffix:  ".example.com",
+		ForwardZoneID: "Z2FDTNDATAQYW2",
+	}
+	p, err := newMockNewRoute53Provider(
+		mockClient,
+		zap.NewExample(),
+		config,
+		configtypes.DefaultEndpointFilterFunc,
+		configtypes.DefaultEndpointFilterFunc,
+	)
+	require.NoErrorf(t, err, "something went wrong creating mock provider: %v", err)
+
+	endpoints := []*endpoint.Endpoint{
+		{
+			Hostname:           "test-host",
+			IPv4s:              []string{"192.0.2.1", "192.0.2.1"},
+			IPv6s:              []string{"2001:db8:ffff:ffff::1", "2001:db8:ffff:ffff::1"},
+			RecordTTL:          69,
+			SourceProperties:   nil,
+			ProviderProperties: nil,
+		},
+	}
+	err = p.UpdateEndpoints(context.Background(), endpoints)
+	require.NoErrorf(t, err, "error updating endpoints: %v", err)
+
+	require.Len(
+		t,
+		mockClient.ChangeResourceRecordSetsCalls,
+		1,
+		"mockRoute53Client.ChangeResourceRecordSets was never called",
+	)
+	changes := mockClient.ChangeResourceRecordSetsCalls[0].Input.ChangeBatch.Changes
+
+	assert.Len(t, changes, 2)
+	for _, change := range changes {
+		assert.Equal(t, types.ChangeActionUpsert, change.Action)
+		assert.Equal(t, int64(69), aws.ToInt64(change.ResourceRecordSet.TTL))
+		assert.Equal(t, "test-host.example.com", aws.ToString(change.ResourceRecordSet.Name))
+		assert.Len(t, change.ResourceRecordSet.ResourceRecords, 1)
+		switch change.ResourceRecordSet.Type {
+		case types.RRTypeA:
+			assert.Equal(t, "192.0.2.1", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+		case types.RRTypeAaaa:
+			assert.Equal(t, "2001:db8:ffff:ffff::1", aws.ToString(change.ResourceRecordSet.ResourceRecords[0].Value))
+		default:
+			panic("unhandled RRType: " + change.ResourceRecordSet.Type)
+		}
+	}
+}
