@@ -79,15 +79,30 @@ func TestLuaConfig_Providers(t *testing.T) {
 		providerName   string
 		configFileName string
 	}{
+		"aws_route53": {
+			providerType:   "*aws.route53Provider",
+			providerName:   "route53",
+			configFileName: "test_lua/lua_config_providers_aws_route53.lua",
+		},
 		"custom": {
 			providerType:   "*custom.customLuaProvider",
 			providerName:   "custom",
 			configFileName: "test_lua/lua_config_providers_custom.lua",
 		},
-		"aws_route53": {
-			providerType:   "*aws.route53Provider",
-			providerName:   "route53",
-			configFileName: "test_lua/lua_config_providers_aws_route53.lua",
+		"hosts_file": {
+			providerType:   "*hostsfile.hostsFileProvider",
+			providerName:   "hostsfile",
+			configFileName: "test_lua/lua_config_providers_hosts_file.lua",
+		},
+		"http": {
+			providerType:   "*http.HTTPProvider",
+			providerName:   "http",
+			configFileName: "test_lua/lua_config_providers_http.lua",
+		},
+		"prometheus_metrics": {
+			providerType:   "*prometheusmetrics.prometheusMetricsProvider",
+			providerName:   "prom",
+			configFileName: "test_lua/lua_config_providers_prometheus_metrics.lua",
 		},
 	}
 	for n, tc := range luaConfig {

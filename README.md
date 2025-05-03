@@ -24,6 +24,7 @@ ZonePop is still in the early stages of development (and might be for a long tim
 - `aws_route53` - Updates records in a AWS Route53 hosted zone
 - `custom` - Arbitrary Lua function
 - `hosts_file` - Generates an `/etc/hosts` style file, optionally uploading to remote server via SSH
+- `http` - Exposes a JSON list representation accessible via the `/endpoints` HTTP endpoint.
 - `prometheus_metrics` - Exports info metrics for each endpoint in Prometheus format, accessible via the `/metrics` HTTP endpoint.
 
 ## Configuration
