@@ -3,13 +3,13 @@ package config
 import (
 	"fmt"
 
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 
 	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/config/luazap"
 	"github.com/sapslaj/zonepop/endpoint"
+	"github.com/sapslaj/zonepop/pkg/gluamapper"
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"

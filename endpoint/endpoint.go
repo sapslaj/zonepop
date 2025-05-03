@@ -1,10 +1,10 @@
 package endpoint
 
 import (
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	luar "layeh.com/gopher-luar"
 
+	"github.com/sapslaj/zonepop/pkg/gluamapper"
 	"github.com/sapslaj/zonepop/pkg/luautils"
 )
 

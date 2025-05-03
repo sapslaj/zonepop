@@ -189,7 +189,7 @@ func TestFields(t *testing.T) {
 		"with table in fields": {
 			do: `require("zap").info("with table in fields", {foo={sub="bar",bar="baz"}})`,
 			fields: map[string]any{
-				"foo": map[any]any{
+				"foo": map[string]any{
 					"sub": "bar",
 					"bar": "baz",
 				},

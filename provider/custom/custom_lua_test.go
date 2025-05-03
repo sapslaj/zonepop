@@ -65,10 +65,10 @@ func TestUpdateEndpoints(t *testing.T) {
 	expected := map[string]any{
 		"hostname":            "test-host",
 		"ipv4s":               []any{string("192.0.2.1")},
-		"ipv6s":               map[any]any{}, // If a Table has no MaxN then it is converted to a map
+		"ipv6s":               map[string]any{}, // If a Table has no MaxN then it is converted to a map
 		"record_ttl":          float64(60),
-		"provider_properties": map[any]any{},
-		"source_properties":   map[any]any{},
+		"provider_properties": map[string]any{},
+		"source_properties":   map[string]any{},
 	}
 	diff := cmp.Diff(logEntry.ContextMap(), expected)
 	if diff != "" {

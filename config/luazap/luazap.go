@@ -5,10 +5,11 @@ import (
 	"math"
 	"strings"
 
-	"github.com/yuin/gluamapper"
 	lua "github.com/yuin/gopher-lua"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/sapslaj/zonepop/pkg/gluamapper"
 )
 
 type LuaZap struct {
@@ -57,9 +58,7 @@ func (lz *LuaZap) Loader(L *lua.LState) int {
 }
 
 func (lz *LuaZap) ToGoValue(lv lua.LValue) any {
-	value := gluamapper.ToGoValue(lv, gluamapper.Option{
-		NameFunc: gluamapper.Id,
-	})
+	value := gluamapper.ToGoValue(lv, gluamapper.Option{})
 	// Hack to make ints work
 	if floatValue, ok := value.(float64); ok {
 		if math.Round(floatValue) == floatValue {
@@ -99,9 +98,7 @@ func (lz *LuaZap) TableToZapFields(lt *lua.LTable) []zapcore.Field {
 	}
 
 	var goFields map[string]any
-	fieldMapper := gluamapper.NewMapper(gluamapper.Option{
-		NameFunc: gluamapper.Id,
-	})
+	fieldMapper := gluamapper.NewMapper(gluamapper.Option{})
 	err := fieldMapper.Map(lt, &goFields)
 	if err != nil {
 		// TODO: better error handling
