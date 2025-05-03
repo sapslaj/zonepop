@@ -61,6 +61,12 @@ func (c *Controller) RunOnce(ctx context.Context) error {
 			MetricSourceUp.WithLabelValues(s.Name).Set(1)
 		}
 		MetricEndpoints.WithLabelValues(s.Name).Set(float64(len(e)))
+		for i := range e {
+			if e[i].SourceProperties == nil {
+				e[i].SourceProperties = map[string]any{}
+			}
+			e[i].SourceProperties["source"] = s.Name
+		}
 		endpoints = append(endpoints, e...)
 	}
 	if errors != nil {
