@@ -14,6 +14,7 @@ import (
 	"github.com/sapslaj/zonepop/config/configtypes"
 	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/sapslaj/zonepop/pkg/log"
+	"github.com/sapslaj/zonepop/pkg/rdns"
 	"github.com/sapslaj/zonepop/pkg/utils"
 	"github.com/sapslaj/zonepop/provider"
 )
@@ -232,7 +233,7 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 		p.cleanupZone(ctx, p.config.Ipv4ReverseZoneID, []types.RRType{types.RRTypePtr}, func(name string) bool {
 			for _, endpoint := range endpoints {
 				for _, ipv4 := range endpoint.IPv4s {
-					ptr, err := utils.ReverseAddr(ipv4)
+					ptr, err := rdns.ReverseAddr(ipv4)
 					if err != nil {
 						p.logger.Sugar().Errorw("cleanup: could not determine PTR record", "err", err)
 						break
@@ -265,7 +266,7 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 				"hostname", hostname,
 				"full_hostname", fullHostname,
 			)
-			fits, err := utils.FitsInReverseZone(ipv4, p.config.Ipv4ReverseZoneName)
+			fits, err := rdns.FitsInReverseZone(ipv4, p.config.Ipv4ReverseZoneName)
 			if err != nil {
 				addrLogger.Errorw(
 					"could not determine if address fits in reverse zone",
@@ -277,7 +278,7 @@ func (p *route53Provider) updateIPv4Reverse(ctx context.Context, endpoints []*en
 				addrLogger.Warnf("IPv4 %q does not fit in zone %q", ipv4, p.config.Ipv4ReverseZoneName)
 				continue
 			}
-			ptr, err := utils.ReverseAddr(ipv4)
+			ptr, err := rdns.ReverseAddr(ipv4)
 			if err != nil {
 				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
@@ -328,7 +329,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 		p.cleanupZone(ctx, p.config.Ipv6ReverseZoneID, []types.RRType{types.RRTypePtr}, func(name string) bool {
 			for _, endpoint := range endpoints {
 				for _, ipv6 := range endpoint.IPv6s {
-					ptr, err := utils.ReverseAddr(ipv6)
+					ptr, err := rdns.ReverseAddr(ipv6)
 					if err != nil {
 						p.logger.Sugar().Errorw("cleanup: could not determine PTR record", "err", err)
 						break
@@ -363,7 +364,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 				"full_hostname", fullHostname,
 				"hostname", hostname,
 			)
-			fits, err := utils.FitsInReverseZone(ipv6, p.config.Ipv6ReverseZoneName)
+			fits, err := rdns.FitsInReverseZone(ipv6, p.config.Ipv6ReverseZoneName)
 			if err != nil {
 				addrLogger.Errorw(
 					"could not determine if address fits in reverse zone",
@@ -375,7 +376,7 @@ func (p *route53Provider) updateIPv6Reverse(ctx context.Context, endpoints []*en
 				addrLogger.Warnf("IPv6 %q does not fit in zone %q", ipv6, p.config.Ipv6ReverseZoneName)
 				continue
 			}
-			ptr, err := utils.ReverseAddr(ipv6)
+			ptr, err := rdns.ReverseAddr(ipv6)
 			if err != nil {
 				addrLogger.Errorw("could not determine PTR record", "err", err)
 				return err
