@@ -12,17 +12,17 @@ import (
 // the information for a provider to manage DNS records.
 type Endpoint struct {
 	// The hostname for the endpoint
-	Hostname string `json:"hostname"`
+	Hostname string `json:"hostname" gluamapper:"hostname"`
 	// List of IPv4 addresses for A record creation
-	IPv4s []string `json:"ipv4s,omitempty"`
+	IPv4s []string `json:"ipv4s,omitempty" gluamapper:"ipv4s"`
 	// List of IPv6 addresses for AAAA record creation
-	IPv6s []string `json:"ipv6s,omitempty"`
+	IPv6s []string `json:"ipv6s,omitempty" gluamapper:"ipv6s"`
 	// Preferred TTL for resulting records
-	RecordTTL int64 `json:"ttl,omitempty"`
+	RecordTTL int64 `json:"ttl,omitempty" gluamapper:"record_ttl"`
 	// Additional key, value pairs from the source
-	SourceProperties map[string]any `json:"source_properties,omitempty"`
+	SourceProperties map[string]any `json:"source_properties,omitempty" gluamapper:"source_properties"`
 	// Additional key, value pairs for the provider
-	ProviderProperties map[string]any `json:"provider_properties,omitempty"`
+	ProviderProperties map[string]any `json:"provider_properties,omitempty" gluamapper:"provider_properties"`
 }
 
 func FromLuaTable(state *lua.LState, lt *lua.LTable) *Endpoint {
