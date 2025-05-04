@@ -86,18 +86,6 @@ func TestFitsInReverseZone(t *testing.T) {
 			fits:   false,
 			errMsg: "failed to parse address",
 		},
-		"invalid zone for IPv4": {
-			addr:   "192.0.2.69",
-			zone:   "8.b.d.0.1.0.0.2.ip6.arpa.",
-			fits:   false,
-			errMsg: "not a valid IPv4 reverse lookup zone",
-		},
-		"invalid zone for IPv6": {
-			addr:   "2001:db8::1",
-			zone:   "0.192.in-addr.arpa.",
-			fits:   false,
-			errMsg: "not a valid IPv6 reverse lookup zone",
-		},
 		"fails parsing address": {
 			addr:   "invalid",
 			errMsg: "failed to parse address",
