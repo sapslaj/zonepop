@@ -4,12 +4,16 @@ package gluamapper
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"regexp"
 	"strings"
 
 	"github.com/go-viper/mapstructure/v2"
 	"github.com/yuin/gopher-lua"
+	luar "layeh.com/gopher-luar"
 )
+
+const StructTagName = "gluamapper"
 
 // Option is a configuration that is used to create a new mapper.
 type Option struct {
@@ -42,9 +46,7 @@ func (mapper *Mapper) Map(tbl *lua.LTable, st any) error {
 			WeaklyTypedInput: true,
 		}
 	}
-	if config.TagName == "" {
-		config.TagName = "gluamapper"
-	}
+	config.TagName = StructTagName
 	if config.MatchName == nil {
 		config.MatchName = MatchSnakeCase
 	}
@@ -119,4 +121,77 @@ func ToGoValue(lv lua.LValue, opt Option) any {
 	default:
 		return v
 	}
+}
+
+func (mapper *Mapper) ToGoValue(lv lua.LValue) any {
+	return ToGoValue(lv, mapper.Option)
+}
+
+func FromGoValue(L *lua.LState, v any) lua.LValue {
+	if v == nil {
+		return lua.LNil
+	}
+	if lval, ok := v.(lua.LValue); ok {
+		return lval
+	}
+
+	val := reflect.ValueOf(v)
+	valKind := val.Kind()
+	switch valKind {
+	case reflect.Map:
+		if val.IsNil() {
+			return lua.LNil
+		}
+		tbl := L.NewTable()
+		iter := val.MapRange()
+		for iter.Next() {
+			key := iter.Key().Interface()
+			value := iter.Value().Interface()
+			tbl.RawSet(FromGoValue(L, key), FromGoValue(L, value))
+		}
+		return tbl
+	case reflect.Slice:
+		if val.IsNil() {
+			return lua.LNil
+		}
+		fallthrough
+	case reflect.Array:
+		tbl := L.NewTable()
+		for i := 0; i < val.Len(); i++ {
+			value := val.Index(i).Interface()
+			tbl.Append(FromGoValue(L, value))
+		}
+		return tbl
+	case reflect.Struct:
+		tbl := L.NewTable()
+		t := reflect.TypeOf(v)
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			key := ""
+			tag, ok := field.Tag.Lookup(StructTagName)
+			if ok {
+				parts := strings.Split(tag, ",")
+				key = parts[0]
+				options := parts[1:]
+
+				// special case to omit a field
+				if key == "-" && len(options) == 0 {
+					continue
+				}
+
+				// TODO: implement tag options
+			}
+			if key == "" {
+				key = field.Name
+			}
+			value := val.Field(i)
+
+			tbl.RawSetString(key, FromGoValue(L, value.Interface()))
+		}
+		return tbl
+
+	case reflect.Pointer, reflect.Interface:
+		return FromGoValue(L, val.Elem().Interface())
+	}
+	return luar.New(L, v)
 }
