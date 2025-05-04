@@ -203,12 +203,13 @@ func (p *FileProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoin
 			return fmt.Errorf("%s: %w", errMsg, err)
 		}
 		defer conn.Disconnect()
-		client, err := scp.NewClientBySSH(conn.Client)
-		if err != nil {
-			logger.Error(errMsg, zap.Error(err))
-			return fmt.Errorf("%s: %w", errMsg, err)
-		}
 		for _, result := range results {
+			client, err := scp.NewClientBySSH(conn.Client)
+			if err != nil {
+				logger.Error(errMsg, zap.Error(err))
+				return fmt.Errorf("%s: %w", errMsg, err)
+			}
+			defer client.Close()
 			rlogger := logger.With(
 				zap.String("filename", result.Filename),
 				zap.String("permissions", result.Permissions),
