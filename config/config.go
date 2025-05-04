@@ -15,6 +15,7 @@ import (
 	"github.com/sapslaj/zonepop/provider"
 	"github.com/sapslaj/zonepop/provider/aws"
 	custom_provider "github.com/sapslaj/zonepop/provider/custom"
+	"github.com/sapslaj/zonepop/provider/file"
 	hostsfile "github.com/sapslaj/zonepop/provider/hosts_file"
 	http_provider "github.com/sapslaj/zonepop/provider/http"
 	prometheusmetrics "github.com/sapslaj/zonepop/provider/prometheus_metrics"
@@ -213,6 +214,19 @@ func (c *luaConfig) Providers() ([]provider.NamedProvider, error) {
 					reverseFilterFunc,
 				)
 			}
+		case "file":
+			var fileConfig file.FileProviderConfig
+			err = gluamapper.Map(providerConfig, &fileConfig)
+			if err != nil {
+				providerLogger.Errorw("error configuring provider", "err", err)
+				return providers, err
+			}
+			providerInstance, err = file.NewFileProvider(
+				c.state,
+				fileConfig,
+				forwardFilterFunc,
+				reverseFilterFunc,
+			)
 		case "hosts_file":
 			var hfConfig hostsfile.HostsFileProviderConfig
 			err = gluamapper.Map(providerConfig, &hfConfig)
