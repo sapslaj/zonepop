@@ -28,8 +28,12 @@ type PTRRecord struct {
 	// IPv4 or IPv6
 	AddressKind AddressKind `json:"address_kind" gluamapper:"address_kind"`
 
-	// PTR record domain name
+	// PTR record full domain name including zone name
 	DomainName string `json:"domain_name" gluamapper:"domain_name"`
+
+	// PTR record but in an RFC 1035 zone file correct form (if Zone was
+	// configured)
+	RFC1035DomainName string `json:"rfc1035_domain_name" gluamapper:"rfc1035_domain_name"`
 }
 
 type Config struct {
@@ -39,6 +43,18 @@ type Config struct {
 	RecordSuffix string
 
 	Logger *zap.Logger
+}
+
+func RFC1035DomainName(ptr string, zone string) string {
+	if !strings.HasSuffix(zone, ".") {
+		zone += "."
+	}
+	rfc1035DomainName := strings.TrimSuffix(ptr, zone)
+	rfc1035DomainName = strings.TrimSuffix(rfc1035DomainName, ".")
+	if rfc1035DomainName == "" {
+		rfc1035DomainName = "@"
+	}
+	return rfc1035DomainName
 }
 
 func PTRsForEndpoints(endpoints []*endpoint.Endpoint, c Config) ([]PTRRecord, error) {
@@ -108,6 +124,11 @@ func PTRsForEndpoints(endpoints []*endpoint.Endpoint, c Config) ([]PTRRecord, er
 			}
 			seenHostnames[ptr] = fullHostname
 
+			rfc1035DomainName := ptr
+			if c.Zone != "" {
+				rfc1035DomainName = RFC1035DomainName(ptr, c.Zone)
+			}
+
 			ptrRecords = append(ptrRecords, PTRRecord{
 				Endpoint:              e,
 				Hostname:              hostname,
@@ -116,6 +137,7 @@ func PTRsForEndpoints(endpoints []*endpoint.Endpoint, c Config) ([]PTRRecord, er
 				Address:               ipv4,
 				AddressKind:           addrKind,
 				DomainName:            ptr,
+				RFC1035DomainName:     rfc1035DomainName,
 			})
 
 			addrLogger.Sugar().Infof("adding IPv4 PTR record %q for hostname %q", ptr, hostname)
@@ -181,6 +203,11 @@ func PTRsForEndpoints(endpoints []*endpoint.Endpoint, c Config) ([]PTRRecord, er
 			}
 			seenHostnames[ptr] = fullHostname
 
+			rfc1035DomainName := ptr
+			if c.Zone != "" {
+				rfc1035DomainName = RFC1035DomainName(ptr, c.Zone)
+			}
+
 			ptrRecords = append(ptrRecords, PTRRecord{
 				Endpoint:              e,
 				Hostname:              hostname,
@@ -189,6 +216,7 @@ func PTRsForEndpoints(endpoints []*endpoint.Endpoint, c Config) ([]PTRRecord, er
 				Address:               ipv6,
 				AddressKind:           addrKind,
 				DomainName:            ptr,
+				RFC1035DomainName:     rfc1035DomainName,
 			})
 
 			addrLogger.Sugar().Infof("adding IPv6 PTR record %q for hostname %q", ptr, hostname)
