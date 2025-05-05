@@ -109,9 +109,6 @@ func (p *FileProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoin
 		var result string
 
 		if fileConfig.Generate != nil {
-			logger.Sugar().Infof("len(endpoints) = %d", len(endpoints))
-			logger.Sugar().Infof("endpoints[0].Hostname = %s", endpoints[0].Hostname)
-			logger.Sugar().Infof("endpoints[0].IPv4s = %v", endpoints[0].IPv4s)
 			co, _ := p.State.NewThread()
 			for {
 				st, err, values := p.State.Resume(
