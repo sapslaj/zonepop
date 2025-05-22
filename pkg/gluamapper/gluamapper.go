@@ -157,7 +157,7 @@ func FromGoValue(L *lua.LState, v any) lua.LValue {
 		fallthrough
 	case reflect.Array:
 		tbl := L.NewTable()
-		for i := 0; i < val.Len(); i++ {
+		for i := range val.Len() {
 			value := val.Index(i).Interface()
 			tbl.Append(FromGoValue(L, value))
 		}
@@ -165,7 +165,7 @@ func FromGoValue(L *lua.LState, v any) lua.LValue {
 	case reflect.Struct:
 		tbl := L.NewTable()
 		t := reflect.TypeOf(v)
-		for i := 0; i < t.NumField(); i++ {
+		for i := range t.NumField() {
 			field := t.Field(i)
 			key := ""
 			tag, ok := field.Tag.Lookup(StructTagName)
