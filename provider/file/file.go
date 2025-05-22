@@ -148,9 +148,13 @@ func (p *FileProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoin
 			}
 			var sb strings.Builder
 			err = tpl.Execute(&sb, struct {
+				Config     FileProviderConfig
+				FileConfig FileProviderConfigFile
 				Endpoints  []*endpoint.Endpoint
 				PTRRecords []rdns.PTRRecord
 			}{
+				Config:     p.Config,
+				FileConfig: fileConfig,
 				Endpoints:  forwardEndpoints,
 				PTRRecords: ptrs,
 			})
