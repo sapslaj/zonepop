@@ -469,11 +469,11 @@ func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanT
 		}
 
 		_, err = p.client.ChangeResourceRecordSets(ctx, &route53.ChangeResourceRecordSetsInput{
-			HostedZoneId: aws.String(p.config.Ipv6ReverseZoneID),
+			HostedZoneId: aws.String(zoneID),
 			ChangeBatch:  &types.ChangeBatch{Changes: cleanChanges},
 		})
 		if err != nil {
-			p.logger.Sugar().Errorw("cleanup: failed to delete resource records for IPv6 reverse zone", "err", err)
+			p.logger.Sugar().Errorw("cleanup: failed to delete resource records for hosted zone", "err", err)
 			return err
 		}
 	}
