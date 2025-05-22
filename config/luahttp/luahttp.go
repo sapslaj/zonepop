@@ -113,7 +113,17 @@ func (lhttp *LuaHTTP) L_Request(L *lua.LState) int {
 		L.RaiseError("error making request: %v", err)
 		return 0
 	}
-	httpRequest.Header = http.Header(req.Headers)
+	if req.Headers == nil {
+		httpRequest.Header = http.Header{}
+	} else {
+		httpRequest.Header = http.Header(req.Headers)
+	}
+
+	// auto-set "Content-Type" header
+	// we do this were so we can use `http.Header` methods
+	if req.JSON != nil && httpRequest.Header.Get("Content-Type") == "" {
+		httpRequest.Header.Set("Content-Type", "application/json")
+	}
 
 	httpResponse, err := client.Do(httpRequest)
 	if err != nil {
