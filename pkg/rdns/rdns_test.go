@@ -3,9 +3,82 @@ package rdns
 import (
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
+func TestDetermineAddressKind(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		input    string
+		expected AddressKind
+		errMsg   string
+	}{
+		"valid IPv4": {
+			input:    "192.0.2.69",
+			expected: AddressKindIPv4,
+		},
+		"invalid IPv4": {
+			input:  "256.999.24.2",
+			errMsg: "failed to parse address",
+		},
+		"valid IPv6": {
+			input:    "2001:db8::1",
+			expected: AddressKindIPv6,
+		},
+		"invalid IPv6": {
+			input:  "ffff::ffff::ffff",
+			errMsg: "failed to parse address",
+		},
+	}
+
+	for name, tc := range tests {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := DetermineAddressKind(tc.input)
+			if tc.errMsg == "" {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+			}
+			assert.Equal(t, tc.expected, got)
+		})
+	}
+}
+
+func TestIsReverseDNSZone(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid", func(t *testing.T) {
+		t.Parallel()
+
+		for _, zone := range []string{
+			"192.in-addr.arpa.",
+			"0.0.2.ip6.arpa.",
+		} {
+			assert.True(t, IsReverseDNSZone(zone))
+		}
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		t.Parallel()
+
+		for _, zone := range []string{
+			"192.0.2.69",
+			"2001:db8::1",
+		} {
+			assert.False(t, IsReverseDNSZone(zone))
+		}
+	})
+}
+
 func TestReverseAddr(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]struct {
 		input    string
 		expected string
@@ -29,7 +102,10 @@ func TestReverseAddr(t *testing.T) {
 		},
 	}
 	for desc, tc := range tests {
+		tc := tc
 		t.Run(desc, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := ReverseAddr(tc.input)
 			if tc.errMsg == "" && err != nil {
 				t.Errorf("%s: expected no error but got error %v", desc, err)
@@ -48,6 +124,8 @@ func TestReverseAddr(t *testing.T) {
 }
 
 func TestFitsInReverseZone(t *testing.T) {
+	t.Parallel()
+
 	tests := map[string]struct {
 		addr   string
 		zone   string
@@ -92,7 +170,10 @@ func TestFitsInReverseZone(t *testing.T) {
 		},
 	}
 	for desc, tc := range tests {
+		tc := tc
 		t.Run(desc, func(t *testing.T) {
+			t.Parallel()
+
 			got, err := FitsInReverseZone(tc.addr, tc.zone)
 			if tc.errMsg == "" && err != nil {
 				t.Errorf("%s: expected no error but got error %v", desc, err)
