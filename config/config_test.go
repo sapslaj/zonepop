@@ -89,6 +89,11 @@ func TestLuaConfig_Providers(t *testing.T) {
 			providerName:   "custom",
 			configFileName: "test_lua/lua_config_providers_custom.lua",
 		},
+		"file": {
+			providerType:   "*file.FileProvider",
+			providerName:   "file",
+			configFileName: "test_lua/lua_config_providers_file.lua",
+		},
 		"hosts_file": {
 			providerType:   "*hostsfile.hostsFileProvider",
 			providerName:   "hostsfile",
