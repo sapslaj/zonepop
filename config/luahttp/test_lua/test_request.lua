@@ -22,7 +22,7 @@ return {
   ["GET request"] = function ()
     local res = http.request({
       method = "GET",
-      url = "https://httpbin.org/get",
+      url = "https://httpbingo.org/get",
     })
     if res.status_code ~= 200 then
       error(string.format("unexpected status code (want 200, got %d)", res.status_code))
@@ -30,7 +30,7 @@ return {
   end,
   ["implicit GET"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/get",
+      url = "https://httpbingo.org/get",
     })
     if res.status_code ~= 200 then
       error(string.format("unexpected status code (want 200, got %d)", res.status_code))
@@ -39,7 +39,7 @@ return {
   ["POST request"] = function ()
     local res = http.request({
       method = "POST",
-      url = "https://httpbin.org/post",
+      url = "https://httpbingo.org/post",
     })
     if res.status_code ~= 200 then
       error(string.format("unexpected status code (want 200, got %d)", res.status_code))
@@ -47,7 +47,7 @@ return {
   end,
   ["200 status code"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/status/200",
+      url = "https://httpbingo.org/status/200",
     })
     if res.status_code ~= 200 then
       error(string.format("unexpected status code (want 200, got %d)", res.status_code))
@@ -55,7 +55,7 @@ return {
   end,
   ["400 status code"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/status/400",
+      url = "https://httpbingo.org/status/400",
     })
     if res.status_code ~= 400 then
       error(string.format("unexpected status code (want 400, got %d)", res.status_code))
@@ -63,7 +63,7 @@ return {
   end,
   ["500 status code"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/status/500",
+      url = "https://httpbingo.org/status/500",
     })
     if res.status_code ~= 500 then
       error(string.format("unexpected status code (want 500, got %d)", res.status_code))
@@ -71,7 +71,7 @@ return {
   end,
   ["headers"] = function()
     local res = http.request({
-      url = "https://httpbin.org/headers",
+      url = "https://httpbingo.org/headers",
       headers = {
         ["X-Foo-Bar"] = {"baz"},
       }
@@ -83,7 +83,7 @@ return {
       ))
     end
     local json = res.json()
-    if json["headers"]["X-Foo-Bar"] ~= "baz" then
+    if json["headers"]["X-Foo-Bar"][1] ~= "baz" then
       error(string.format(
         "unexpected \"X-Foo-Bar\" header value (want \"baz\", got %q)",
         json["headers"]["X-Foo-Bar"]
@@ -92,8 +92,12 @@ return {
   end,
   ["plain-text request body"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/anything",
+      url = "https://httpbingo.org/anything",
+      method = "POST",
       body = "this is raw data",
+      headers = {
+        ["Content-Type"] = {"text/plain"},
+      },
     })
     if res.json()["data"] ~= "this is raw data" then
       -- FIXME: this error message is terrible
@@ -102,7 +106,7 @@ return {
   end,
   ["plain-text response body"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/encoding/utf8",
+      url = "https://httpbingo.org/encoding/utf8",
     })
     if not string.find(res.body, "Unicode Demo") then
       error("didn't find expected unicode string in response body")
@@ -111,7 +115,7 @@ return {
   ["JSON"] = function ()
     local res = http.request({
       method = "GET",
-      url = "https://httpbin.org/anything",
+      url = "https://httpbingo.org/anything",
       json = {
         str = "foo",
         int = 69,
@@ -174,7 +178,7 @@ return {
   end,
   ["timeout"] = function ()
     local res = http.request({
-      url = "https://httpbin.org/delay/1",
+      url = "https://httpbingo.org/delay/1",
       insecure_skip_verify = true,
       timeout_seconds = 10,
     })
@@ -184,7 +188,7 @@ return {
 
     if pcall(function ()
       http.request({
-        url = "https://httpbin.org/delay/3",
+        url = "https://httpbingo.org/delay/3",
         insecure_skip_verify = true,
         timeout_seconds = 1,
       })
