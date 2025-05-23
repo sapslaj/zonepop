@@ -22,13 +22,6 @@ func LeasesFromJSON(b []byte) ([]*Lease, error) {
 	return leases, nil
 }
 
-func getFieldValue(fields []string, index int) string {
-	if index >= len(fields) {
-		return ""
-	}
-	return fields[index]
-}
-
 func LeasesFromShowOutput(b []byte) ([]*Lease, error) {
 	rows, err := TabulateParse(b)
 	if err != nil {
