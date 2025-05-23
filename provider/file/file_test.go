@@ -6,11 +6,12 @@ import (
 	"path"
 	"testing"
 
-	"github.com/sapslaj/zonepop/config/configtypes"
-	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	lua "github.com/yuin/gopher-lua"
+
+	"github.com/sapslaj/zonepop/config/configtypes"
+	"github.com/sapslaj/zonepop/endpoint"
 )
 
 func TestFileProvider(t *testing.T) {

@@ -6,10 +6,11 @@ import (
 	"path"
 	"testing"
 
-	"github.com/sapslaj/zonepop/config/configtypes"
-	"github.com/sapslaj/zonepop/endpoint"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/sapslaj/zonepop/config/configtypes"
+	"github.com/sapslaj/zonepop/endpoint"
 )
 
 func TestHostsFileProvider(t *testing.T) {
