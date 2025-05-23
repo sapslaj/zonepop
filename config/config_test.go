@@ -105,7 +105,7 @@ func TestLuaConfig_Providers(t *testing.T) {
 			configFileName: "test_lua/lua_config_providers_http.lua",
 		},
 		"prometheus_metrics": {
-			providerType:   "*prometheusmetrics.prometheusMetricsProvider",
+			providerType:   "*prometheusmetrics.PrometheusMetricsProvider",
 			providerName:   "prom",
 			configFileName: "test_lua/lua_config_providers_prometheus_metrics.lua",
 		},
