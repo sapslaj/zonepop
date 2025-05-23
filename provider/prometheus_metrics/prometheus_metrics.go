@@ -15,7 +15,6 @@ import (
 	"github.com/sapslaj/zonepop/pkg/log"
 	"github.com/sapslaj/zonepop/pkg/metrics"
 	"github.com/sapslaj/zonepop/pkg/utils"
-	"github.com/sapslaj/zonepop/provider"
 )
 
 type PrometheusMetricsProviderConfig struct {
@@ -25,7 +24,7 @@ type PrometheusMetricsProviderConfig struct {
 	ProviderLabels  []string
 }
 
-type prometheusMetricsProvider struct {
+type PrometheusMetricsProvider struct {
 	name                 string
 	config               PrometheusMetricsProviderConfig
 	logger               *zap.Logger
@@ -40,7 +39,7 @@ func NewPrometheusMetricsProvider(
 	name string,
 	providerConfig PrometheusMetricsProviderConfig,
 	forwardLookupFilter configtypes.EndpointFilterFunc,
-) (provider.Provider, error) {
+) (*PrometheusMetricsProvider, error) {
 	if providerConfig.MetricNamespace == "" {
 		providerConfig.MetricNamespace = metrics.Namespace
 	}
@@ -52,7 +51,7 @@ func NewPrometheusMetricsProvider(
 	}
 	endpointMetricLabels = append(endpointMetricLabels, providerConfig.SourceLabels...)
 	endpointMetricLabels = append(endpointMetricLabels, providerConfig.ProviderLabels...)
-	p := &prometheusMetricsProvider{
+	p := &PrometheusMetricsProvider{
 		name:                name,
 		config:              providerConfig,
 		logger:              log.MustNewLogger().Named("prometheus_metrics_provider:" + name),
@@ -74,7 +73,7 @@ func NewPrometheusMetricsProvider(
 	return p, err
 }
 
-func (p *prometheusMetricsProvider) push(labels map[string]string) error {
+func (p *PrometheusMetricsProvider) push(labels map[string]string) error {
 	labelValues := []string{}
 	for _, key := range p.endpointMetricLabels {
 		labelValues = append(labelValues, labels[key])
@@ -92,7 +91,7 @@ func (p *prometheusMetricsProvider) push(labels map[string]string) error {
 	return nil
 }
 
-func (p *prometheusMetricsProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
+func (p *PrometheusMetricsProvider) UpdateEndpoints(ctx context.Context, endpoints []*endpoint.Endpoint) error {
 	forwardEndpoints := utils.Filter(p.forwardLookupFilter, endpoints)
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
@@ -153,11 +152,11 @@ func (p *prometheusMetricsProvider) UpdateEndpoints(ctx context.Context, endpoin
 	return nil
 }
 
-func (p *prometheusMetricsProvider) Describe(ch chan<- *prometheus.Desc) {
+func (p *PrometheusMetricsProvider) Describe(ch chan<- *prometheus.Desc) {
 	ch <- p.endpointMetricDesc
 }
 
-func (p *prometheusMetricsProvider) Collect(ch chan<- prometheus.Metric) {
+func (p *PrometheusMetricsProvider) Collect(ch chan<- prometheus.Metric) {
 	p.mutex.Lock()
 	defer p.mutex.Unlock()
 	for _, metric := range p.endpointMetrics {
