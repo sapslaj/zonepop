@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/route53 v1.27.3
 	github.com/bramvdbogaerde/go-scp v1.2.1
 	github.com/go-sprout/sprout v1.0.0
-	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/go-viper/mapstructure/v2 v2.3.0
 	github.com/google/go-cmp v0.6.0
 	github.com/prometheus/client_golang v1.19.1
 	github.com/stretchr/testify v1.10.0
