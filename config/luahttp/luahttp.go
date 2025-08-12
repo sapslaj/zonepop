@@ -96,7 +96,13 @@ func (lhttp *LuaHTTP) L_Request(L *lua.LState) int {
 		reqBody = strings.NewReader(req.Body)
 	}
 
-	clientTransport := &http.Transport{}
+	// FIXME: keepalives and connection pooling are leaking memory/goroutines/tcp
+	// connections for some reason, so need to disable them.
+	clientTransport := &http.Transport{
+		DisableKeepAlives:   true,
+		MaxIdleConns:        1,
+		MaxIdleConnsPerHost: -1,
+	}
 
 	if req.InsecureSkipVerify {
 		clientTransport.TLSClientConfig = &tls.Config{
@@ -113,6 +119,7 @@ func (lhttp *LuaHTTP) L_Request(L *lua.LState) int {
 		L.RaiseError("error making request: %v", err)
 		return 0
 	}
+	httpRequest.Close = true
 	if req.Headers == nil {
 		httpRequest.Header = http.Header{}
 	} else {
@@ -130,15 +137,16 @@ func (lhttp *LuaHTTP) L_Request(L *lua.LState) int {
 		L.RaiseError("error making request: %v", err)
 		return 0
 	}
+	httpResponse.Close = true
 
 	var resBody string
 	if httpResponse.Body != nil {
 		resData, err := io.ReadAll(httpResponse.Body)
-		defer httpResponse.Body.Close()
 		if err != nil {
 			L.RaiseError("error making request: %v", err)
 			return 0
 		}
+		httpResponse.Body.Close()
 		resBody = string(resData)
 	}
 
