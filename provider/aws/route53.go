@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
@@ -58,6 +59,8 @@ type route53Provider struct {
 	reverseLookupFilter configtypes.EndpointFilterFunc
 	client              Route53Client
 	logger              *zap.Logger
+	cachedRecordSets    map[string][]types.ResourceRecordSet
+	cacheExpiry         map[string]time.Time
 }
 
 func getRoute53ZoneName(ctx context.Context, client Route53Client, zoneID string) (string, error) {
@@ -85,6 +88,8 @@ func NewRoute53Provider(
 		reverseLookupFilter: reverseLookupFilter,
 		client:              client,
 		logger:              log.MustNewLogger().Named("aws_route53_provider"),
+		cachedRecordSets:    map[string][]types.ResourceRecordSet{},
+		cacheExpiry:         map[string]time.Time{},
 	}
 	return p, nil
 }
@@ -148,13 +153,21 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		})
 	}
 
+	clearCache := false
+
 	changes := make([]types.Change, 0)
 	for hostname, endpoints := range hostnameEndpoints {
 		fullHostname := utils.DNSSafeName(hostname) + p.config.RecordSuffix
+		fullyQualifiedHostname := fullHostname
+		if !strings.HasSuffix(fullyQualifiedHostname, ".") {
+			fullyQualifiedHostname = fullyQualifiedHostname + "."
+		}
+
 		hostnameLogger := p.logger.Sugar().With(
 			"hostname", hostname,
 			"full_hostname", fullHostname,
 		)
+
 		ipv4 := make([]string, 0)
 		ipv6 := make([]string, 0)
 		if len(endpoints) == 0 {
@@ -177,28 +190,68 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		ttl := endpoints[0].RecordTTL
 		hostnameLogger = hostnameLogger.With("ttl", ttl)
 		if len(ipv4) > 0 {
-			hostnameLogger.With(
-				"ipv4", ipv4,
-				"record_type", "A",
-			).Infof("adding IPv4 (A) record %q for hostname %q", ipv4, hostname)
-			changes = append(changes, p.dnsChange(
-				fullHostname,
-				ipv4,
-				"A",
-				endpoints[0].RecordTTL,
-			))
+			existingRR := p.getCachedResourceRecord(ctx, p.config.ForwardZoneID, fullyQualifiedHostname, types.RRTypeA)
+			needsUpdate := false
+			if existingRR != nil {
+				for _, rr := range existingRR.ResourceRecords {
+					if !slices.Contains(ipv4, *rr.Value) {
+						needsUpdate = true
+						break
+					}
+				}
+			} else {
+				needsUpdate = true
+			}
+			if needsUpdate {
+				clearCache = true
+				hostnameLogger.With(
+					"ipv4", ipv4,
+					"record_type", "A",
+				).Infof("adding IPv4 (A) record %q for hostname %q", ipv4, hostname)
+				changes = append(changes, p.dnsChange(
+					fullHostname,
+					ipv4,
+					"A",
+					endpoints[0].RecordTTL,
+				))
+			} else {
+				hostnameLogger.With(
+					"ipv4", ipv4,
+					"record_type", "A",
+				).Infof("IPv4 (A) record %q for hostname %q does not need update", ipv4, hostname)
+			}
 		}
 		if len(ipv6) > 0 {
-			hostnameLogger.With(
-				"ipv6", ipv6,
-				"record_type", "AAAA",
-			).Infof("adding IPv6 (AAAA) record %q for hostname %q", ipv6, hostname)
-			changes = append(changes, p.dnsChange(
-				fullHostname,
-				ipv6,
-				"AAAA",
-				endpoints[0].RecordTTL,
-			))
+			existingRR := p.getCachedResourceRecord(ctx, p.config.ForwardZoneID, fullyQualifiedHostname, types.RRTypeAaaa)
+			needsUpdate := false
+			if existingRR != nil {
+				for _, rr := range existingRR.ResourceRecords {
+					if !slices.Contains(ipv4, *rr.Value) {
+						needsUpdate = true
+						break
+					}
+				}
+			} else {
+				needsUpdate = true
+			}
+			if needsUpdate {
+				clearCache = true
+				hostnameLogger.With(
+					"ipv6", ipv6,
+					"record_type", "AAAA",
+				).Infof("adding IPv6 (AAAA) record %q for hostname %q", ipv6, hostname)
+				changes = append(changes, p.dnsChange(
+					fullHostname,
+					ipv6,
+					"AAAA",
+					endpoints[0].RecordTTL,
+				))
+			} else {
+				hostnameLogger.With(
+					"ipv6", ipv6,
+					"record_type", "AAAA",
+				).Infof("IPv6 (AAAA) record %q for hostname %q does not need update", ipv6, hostname)
+			}
 		}
 	}
 	if len(changes) == 0 {
@@ -210,6 +263,10 @@ func (p *route53Provider) updateForward(ctx context.Context, endpoints []*endpoi
 		HostedZoneId: aws.String(p.config.ForwardZoneID),
 		ChangeBatch:  &types.ChangeBatch{Changes: changes},
 	})
+
+	if clearCache {
+		p.clearCache(ctx, p.config.ForwardZoneID)
+	}
 
 	return err
 }
@@ -478,4 +535,72 @@ func (p *route53Provider) cleanupZone(ctx context.Context, zoneID string, cleanT
 		}
 	}
 	return nil
+}
+
+func (p *route53Provider) listResourceRecordSets(ctx context.Context, zoneID string) ([]types.ResourceRecordSet, error) {
+	result := []types.ResourceRecordSet{}
+
+	var nextRecordName *string
+	for {
+		query, err := p.client.ListResourceRecordSets(ctx, &route53.ListResourceRecordSetsInput{
+			HostedZoneId:    aws.String(zoneID),
+			StartRecordName: nextRecordName,
+		})
+		if err != nil {
+			return result, err
+		}
+
+		nextRecordName = query.NextRecordName
+		result = append(result, query.ResourceRecordSets...)
+
+		if !query.IsTruncated || nextRecordName == nil {
+			break
+		}
+	}
+
+	return result, nil
+}
+
+func (p *route53Provider) cachedListResourceRecordSets(ctx context.Context, zoneID string) ([]types.ResourceRecordSet, error) {
+	if p.cachedRecordSets == nil {
+		p.cachedRecordSets = map[string][]types.ResourceRecordSet{}
+	}
+
+	if p.cachedRecordSets[zoneID] != nil && time.Now().Before(p.cacheExpiry[zoneID]) {
+		return p.cachedRecordSets[zoneID], nil
+	}
+
+	rrs, err := p.listResourceRecordSets(ctx, zoneID)
+	if err != nil {
+		return nil, err
+	}
+
+	p.cachedRecordSets[zoneID] = rrs
+	p.cacheExpiry[zoneID] = time.Now().Add(24 * time.Hour)
+
+	return rrs, nil
+}
+
+func (p *route53Provider) getCachedResourceRecord(ctx context.Context, zoneID string, name string, rrtype types.RRType) *types.ResourceRecordSet {
+	rrs, err := p.cachedListResourceRecordSets(ctx, zoneID)
+	if err != nil {
+		return nil
+	}
+
+	for _, rr := range rrs {
+		if *rr.Name != name {
+			continue
+		}
+		if rr.Type != rrtype {
+			continue
+		}
+		return &rr
+	}
+
+	return nil
+}
+
+func (p *route53Provider) clearCache(ctx context.Context, zoneID string) {
+	p.cachedRecordSets[zoneID] = nil
+	p.cacheExpiry[zoneID] = time.Time{}
 }

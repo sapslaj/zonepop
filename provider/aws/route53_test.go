@@ -181,6 +181,8 @@ func newMockNewRoute53Provider(
 		reverseLookupFilter: reverseLookupFilter,
 		client:              client,
 		logger:              logger,
+		cachedRecordSets:    map[string][]types.ResourceRecordSet{},
+		cacheExpiry:         map[string]time.Time{},
 	}, nil
 }
 
