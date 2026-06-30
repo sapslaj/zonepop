@@ -29,10 +29,10 @@ func DetermineAddressKind(addr string) (AddressKind, error) {
 }
 
 func IsReverseDNSZone(zone string) bool {
-	if strings.HasSuffix(zone, ".in-addr.arpa.") {
+	if strings.HasSuffix(zone, ".in-addr.arpa.") || zone == "in-addr.arpa." {
 		return true
 	}
-	if strings.HasSuffix(zone, ".ip6.arpa.") {
+	if strings.HasSuffix(zone, ".ip6.arpa.") || zone == "ip6.arpa." {
 		return true
 	}
 	return false
@@ -44,10 +44,10 @@ func DetermineReverseZoneKind(zone string) (AddressKind, error) {
 	if !strings.HasSuffix(zone, ".") {
 		zone += "."
 	}
-	if strings.HasSuffix(zone, ".in-addr.arpa.") {
+	if strings.HasSuffix(zone, ".in-addr.arpa.") || zone == "in-addr.arpa." {
 		return AddressKindIPv4, nil
 	}
-	if strings.HasSuffix(zone, ".ip6.arpa.") {
+	if strings.HasSuffix(zone, ".ip6.arpa.") || zone == "ip6.arpa." {
 		return AddressKindIPv6, nil
 	}
 	return "", fmt.Errorf("%w: %q is not a valid rDNS zone name", ErrInvalidZone, zone)
@@ -102,7 +102,12 @@ func FitsInReverseZone(addr string, zone string) (bool, error) {
 
 	if addrKind == AddressKindIPv4 {
 		ipOctets := strings.Split(addr, ".")
-		zoneOctets := utils.Reversed(strings.Split(strings.TrimSuffix(zone, ".in-addr.arpa."), "."))
+		section := strings.TrimSuffix(zone, ".in-addr.arpa.")
+		section = strings.TrimSuffix(section, "in-addr.arpa.")
+		if section == "" {
+			return true, nil
+		}
+		zoneOctets := utils.Reversed(strings.Split(section, "."))
 		for i, zoneOctet := range zoneOctets {
 			if zoneOctet != ipOctets[i] {
 				return false, nil

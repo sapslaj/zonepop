@@ -59,6 +59,8 @@ func TestIsReverseDNSZone(t *testing.T) {
 		for _, zone := range []string{
 			"192.in-addr.arpa.",
 			"0.0.2.ip6.arpa.",
+			"in-addr.arpa.",
+			"ip6.arpa.",
 		} {
 			assert.True(t, IsReverseDNSZone(zone))
 		}
@@ -167,6 +169,16 @@ func TestFitsInReverseZone(t *testing.T) {
 		"fails parsing address": {
 			addr:   "invalid",
 			errMsg: "failed to parse address",
+		},
+		"fitting valid IPv4 in top level zone": {
+			addr: "192.0.2.69",
+			zone: "in-addr.arpa.",
+			fits: true,
+		},
+		"fitting valid IPv6 in top level zone": {
+			addr: "2001:db8::1",
+			zone: "ip6.arpa.",
+			fits: true,
 		},
 	}
 	for desc, tc := range tests {

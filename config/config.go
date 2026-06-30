@@ -245,7 +245,7 @@ func (c *luaConfig) Providers() ([]provider.NamedProvider, error) {
 				providerLogger.Errorw("error configuring provider", "err", err)
 				return providers, err
 			}
-			providerInstance, err = http_provider.NewHTTPProvider(httpConfig, forwardFilterFunc)
+			providerInstance, err = http_provider.NewHTTPProvider(httpConfig, forwardFilterFunc, reverseFilterFunc)
 		case "prometheus_metrics":
 			var pmConfig prometheusmetrics.PrometheusMetricsProviderConfig
 			err = gluamapper.Map(providerConfig, &pmConfig)
